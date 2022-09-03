@@ -35,7 +35,7 @@ namespace t3d
 		{
 			ComponentSignature_T Signature;
 
-			([&]() { Signature.push_back(TComponentInfo<Components_T>::Id); } (), ...);
+			((Signature.push_back(TComponentInfo<Components_T>::Id)), ...);
 
 			std::sort(Signature.begin(), Signature.end());
 
@@ -47,7 +47,7 @@ namespace t3d
 		{
 			ComponentSignature_T Signature;
 
-			([&]() { Signature.push_back(Ids); } (), ...);
+			((Signature.push_back(Ids)), ...);
 
 			std::sort(Signature.begin(), Signature.end());
 
@@ -57,7 +57,7 @@ namespace t3d
 		template<typename... Components_T>
 		static void __fastcall AddComponentsToSignature(ComponentSignature_T& Signature)
 		{
-			([&]() { Signature.push_back(TComponentInfo<Components_T>::Id); } (), ...);
+			((Signature.push_back(TComponentInfo<Components_T>::Id)), ...);
 
 			std::sort(Signature.begin(), Signature.end());
 		}
@@ -65,7 +65,7 @@ namespace t3d
 		template<typename... ComponentIds_T>
 		static void __fastcall AddComponentsToSignature(ComponentSignature_T& Signature, ComponentIds_T... Ids)
 		{
-			([&]() { Signature.push_back(Ids); } (), ...);
+			((Signature.push_back(Ids)), ...);
 
 			std::sort(Signature.begin(), Signature.end());
 		}
@@ -73,7 +73,7 @@ namespace t3d
 		template<typename... Components_T>
 		static void __fastcall RemoveComponentsFromSignature(ComponentSignature_T& Signature)
 		{
-			([&]() { std::erase(Signature, TComponentInfo<Components_T>::Id); } (), ...);
+			((std::erase(Signature, TComponentInfo<Components_T>::Id)), ...);
 
 			std::sort(Signature.begin(), Signature.end());
 		}
@@ -81,7 +81,7 @@ namespace t3d
 		template<typename... ComponentIds_T>
 		static void __fastcall RemoveComponentsFromSignature(ComponentSignature_T& Signature, ComponentIds_T... Ids)
 		{
-			([&]() { std::erase(Signature, Ids); } (), ...);
+			((std::erase(Signature, Ids)), ...);
 
 			std::sort(Signature.begin(), Signature.end());
 		}

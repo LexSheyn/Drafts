@@ -25,6 +25,12 @@ struct CScale
 	int64_t Z;
 };
 
+void Function(int32_t Int, float_t Float)
+{
+	std::cout << "Int:   " << Int   << std::endl;
+	std::cout << "Float: " << Float << std::endl;
+}
+
 int32_t main(int32_t ArgC, const char* ArgV)
 {
 	t3d::FComponentManager::RegisterComponent<CTranslation>();
@@ -45,36 +51,44 @@ int32_t main(int32_t ArgC, const char* ArgV)
 
 	World.AddComponent(Entity2, CTranslation{ 30, 30, 30 });
 	World.AddComponent(Entity2, CRotation   { 31, 31, 31 });
-//	World.AddComponent(Entity2, CScale      { 32, 32, 32 });
+	World.AddComponent(Entity2, CScale      { 32, 32, 32 });
+
+	World.RemoveComponent<CScale>(Entity2);
+
+	auto Entity3 = World.CreateEntity();
+
+	World.AddComponent(Entity3, CTranslation{ 40, 40, 40 });
+	World.AddComponent(Entity3, CRotation   { 41, 41, 41 });
+
+	//World.RemoveEntity(Entity0);
+	//World.RemoveEntity(Entity1);
+	//World.RemoveEntity(Entity2);
+	//World.RemoveEntity(Entity3);
 
 	struct FPrintJob : t3d::IJobForEach<CTranslation, CRotation>
 	{
-		void Execute(CTranslation& Translation, CRotation& Rotation) override
+		void operator () (CTranslation& Translation, CRotation& Rotation) override
 		{
 			std::cout << "Translation: " << Translation.X << " " << Translation.Y << " " << Translation.Z << std::endl;
 			std::cout << "Rotation:    " << Rotation   .X << " " << Rotation   .Y << " " << Rotation   .Z << std::endl;
 		}
 	};
 
-	World.ForEachOnly<CTranslation, CRotation>(std::make_unique<FPrintJob>());
-
-	struct A
+	struct FModifyJob : t3d::IJobForEach<CTranslation, CRotation>
 	{
-		void FunctionA()
-		{}
-	};
-
-	struct B : A
-	{
-		void FunctionB()
+		void operator () (CTranslation& Translation, CRotation& Rotation) override
 		{
-			this->FunctionA();
+			Translation.X *= 10;
 		}
 	};
 
-	B b;
+	World.ForEachOnly<CTranslation, CRotation>(FPrintJob());
+	World.ForEachOnly<CTranslation, CRotation>(FModifyJob());
+	World.ForEachOnly<CTranslation, CRotation>(FPrintJob());
 
-	b.FunctionA();
+	std::tuple<int32_t*, std::string*> Tuple;
+
+	auto Result = t3d::CreateTuple(Tuple);
 
 //	std::vector<char> Vector;
 //

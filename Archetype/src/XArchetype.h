@@ -163,6 +163,11 @@ namespace t3d
 			return ComponentSignature;
 		}
 
+		std::vector<FDataVector>& GetComponentVectors() noexcept
+		{
+			return ComponentVectors;
+		}
+
 		template<typename T>
 		FDataVector& GetComponentVector()
 		{
@@ -190,8 +195,38 @@ namespace t3d
 	template<typename... Components_T>
 	struct IJobForEach
 	{
-		virtual void Execute (Components_T&... Components) = 0;
+		virtual void operator () (Components_T&... Components) = 0;
 	};
+
+	template<template<typename> typename Tuple_T, typename... Args_T>
+	inline auto CreateTuple(Tuple_T<Args_T...>& Tuple)
+	{
+		return std::tie(std::get<Args_T>(Tuple)...);
+	}
+
+	template<typename Tuple_T, size_t... Indices>
+	inline auto CopyIndexedTuple(Tuple_T& Tuple, std::index_sequence<Indices...>)
+	{
+		return std::tie(std::get<Indices>(Tuple)...);
+	}
+
+	template<typename Tuple_T>
+	inline auto CopyTuple(Tuple_T& Tuple)
+	{
+		return CopyIndexedTuple(Tuple, std::make_index_sequence<std::tuple_size<Tuple_T>::value>{});
+	}
+
+	template<typename Function_T, typename Tuple_T, size_t... Indices>
+	inline auto CallIndexedArgumentSequence(Function_T& Function, Tuple_T& Tuple, std::index_sequence<Indices...>)
+	{
+		return Function(std::get<Indices>(Tuple)...);
+	}
+
+	template<typename Function_T, typename Tuple_T>
+	inline auto CallArgumentSequence(Function_T& Function, Tuple_T&& Tuple)
+	{
+		return CallIndexedArgumentSequence(Function, Tuple, std::make_index_sequence<std::tuple_size<Tuple_T>::value>{});
+	}
 
 	class XEntityWorld
 	{
@@ -334,50 +369,23 @@ namespace t3d
 
 	// Queries:
 
-		template<typename T1>
+		template<typename... Components_T>
 		void ForEachOnly(auto Job)
 		{
-			static_assert(std::is_base_of<IJobForEach<T1>, decltype(Job)>::value);
+			static_assert(std::is_base_of<IJobForEach<Components_T...>, decltype(Job)>::value);
 
-			XArchetype& Archetype = this->GetArchetype<T1>();
+			auto ArchetypeIterator = Archetypes.find(FComponentManager::CreateComponentSignature<Components_T...>());
 
-			FDataVector& ComponentVector = Archetype.GetComponentVector<T1>();
-
-			for (size_t i = 0u; i < ComponentVector.Size(); ++i)
+			if (ArchetypeIterator != Archetypes.end())
 			{
-				Job.Execute(ComponentVector.operator[]<T1>(i));
-			}
-		}
+				XArchetype& Archetype = (*ArchetypeIterator).second;
 
-		template<typename T1, typename T2>
-		void ForEachOnly(std::unique_ptr<IJobForEach<T1, T2>>&& Job)
-		{
-			XArchetype& Archetype = this->GetArchetype<T1, T2>();
+				auto& ComponentVectors = Archetype.GetComponentVectors();
 
-			FDataVector& ComponentVector_1 = Archetype.GetComponentVector<T1>();
-			FDataVector& ComponentVector_2 = Archetype.GetComponentVector<T2>();
-
-			for (size_t i = 0u; i < ComponentVector_1.Size(); ++i)
-			{
-				Job->Execute(ComponentVector_1.operator[]<T1>(i)
-					       , ComponentVector_2.operator[]<T2>(i));
-			}
-		}
-
-		template<typename T1, typename T2, typename T3>
-		void ForEachOnly(auto Job)
-		{
-			XArchetype& Archetype = this->GetArchetype<T1, T2, T3>();
-
-			FDataVector& ComponentVector_1 = Archetype.GetComponentVector<T1>();
-			FDataVector& ComponentVector_2 = Archetype.GetComponentVector<T2>();
-			FDataVector& ComponentVector_3 = Archetype.GetComponentVector<T3>();
-
-			for (size_t i = 0u; i < ComponentVector_1.Size(); ++i)
-			{
-				Job.Execute(ComponentVector_1.operator[]<T1>(i)
-					      , ComponentVector_2.operator[]<T2>(i)
-					      , ComponentVector_3.operator[]<T3>(i));
+				for (size_t i = 0u; i < Archetype.GetEntityCount(); ++i)
+				{
+					CallArgumentSequence(Job, std::tie([&]() -> auto& { return ComponentVectors[TComponentInfo<Components_T>::Id].operator[]<Components_T>(i); } () ...));
+				}
 			}
 		}
 

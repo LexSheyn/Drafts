@@ -53,12 +53,18 @@ namespace t3d
 
 		constexpr void Resize(size_t ElementCount)
 		{
+			size_t OldIndicesSize = Indices.size();
+			size_t NewIndicesSize = ElementCount;
+
 			Indices.resize(ElementCount);
 			Data   .resize(ElementCount * ElementSize);
 
-			for (size_t i = 0u; i < Indices.size(); ++i)
+			if (OldIndicesSize < NewIndicesSize)
 			{
-				Indices[i] = ElementSize * i;
+				for (size_t i = OldIndicesSize; i < Indices.size(); ++i)
+				{
+					Indices[i] = ElementSize * i;
+				}
 			}
 		}
 
