@@ -33,9 +33,7 @@ namespace t3d
 		template<typename... Components_T>
 		static ComponentSignature_T __fastcall CreateComponentSignature()
 		{
-			ComponentSignature_T Signature;
-
-			((Signature.push_back(TComponentInfo<Components_T>::Id)), ...);
+			ComponentSignature_T Signature = { TComponentInfo<Components_T>::Id... };
 
 			std::sort(Signature.begin(), Signature.end());
 
@@ -45,9 +43,7 @@ namespace t3d
 		template<typename... ComponentIds_T>
 		static ComponentSignature_T __fastcall CreateComponentSignature(ComponentIds_T... Ids)
 		{
-			ComponentSignature_T Signature;
-
-			((Signature.push_back(Ids)), ...);
+			ComponentSignature_T Signature = { Ids... };
 
 			std::sort(Signature.begin(), Signature.end());
 
@@ -84,6 +80,19 @@ namespace t3d
 			((std::erase(Signature, Ids)), ...);
 
 			std::sort(Signature.begin(), Signature.end());
+		}
+
+		template<typename... Components_T>
+		static bool __fastcall HaveComponents(const ComponentSignature_T& Left)
+		{
+			ComponentSignature_T Signature = CreateComponentSignature<Components_T...>();
+
+			return std::includes(Left.begin(), Left.end(), Signature.begin(), Signature.end());
+		}
+
+		static bool __fastcall LeftContainsRight(const ComponentSignature_T& Left, const ComponentSignature_T& Right)
+		{
+			return std::includes(Left.begin(), Left.end(), Right.begin(), Right.end());
 		}
 
 	private:

@@ -67,7 +67,7 @@ int32_t main(int32_t ArgC, const char* ArgV)
 
 	struct FPrintJob : t3d::IJobForEach<CTranslation, CRotation>
 	{
-		void operator () (CTranslation& Translation, CRotation& Rotation) override
+		void Execute(CTranslation& Translation, CRotation& Rotation) override
 		{
 			std::cout << "Translation: " << Translation.X << " " << Translation.Y << " " << Translation.Z << std::endl;
 			std::cout << "Rotation:    " << Rotation   .X << " " << Rotation   .Y << " " << Rotation   .Z << std::endl;
@@ -76,19 +76,36 @@ int32_t main(int32_t ArgC, const char* ArgV)
 
 	struct FModifyJob : t3d::IJobForEach<CTranslation, CRotation>
 	{
-		void operator () (CTranslation& Translation, CRotation& Rotation) override
+		void Execute(CTranslation& Translation, CRotation& Rotation) override
 		{
-			Translation.X *= 10;
+			Translation.X *= 1488;
+			Rotation.Z *= 322;
 		}
 	};
 
-	World.ForEachOnly<CTranslation, CRotation>(FPrintJob());
+	struct FPrintEntityJob : t3d::IJobForEachWithEntity<CTranslation, CRotation>
+	{
+		void Execute(t3d::EntityId_T Entity, CTranslation& Translation, CRotation& Rotation) override
+		{
+			std::cout << "Entity:      " << Entity << std::endl;
+			std::cout << "Translation: " << Translation.X << " " << Translation.Y << " " << Translation.Z << std::endl;
+			std::cout << "Rotation:    " << Rotation   .X << " " << Rotation   .Y << " " << Rotation   .Z << std::endl;
+		}
+	};
+
+//	World.ForEachOnly<CTranslation, CRotation>(FPrintJob());
+	World.ForEachWith<CTranslation, CRotation>(FPrintJob());
+
 	World.ForEachOnly<CTranslation, CRotation>(FModifyJob());
-	World.ForEachOnly<CTranslation, CRotation>(FPrintJob());
 
-	std::tuple<int32_t*, std::string*> Tuple;
+//	World.ForEachWithEntityOnly<CTranslation, CRotation>(FPrintEntityJob());
+	World.ForEachWithEntityWith<CTranslation, CRotation>(FPrintEntityJob());
 
-	auto Result = t3d::CreateTuple(Tuple);
+	std::tuple<int32_t, float_t> Tuple = { 1488, 322.0f };
+
+	auto Result = t3d::CreateTupleOfReferences(Tuple);
+
+	t3d::CallWithArgumentsFromTuple(Function, Result);
 
 //	std::vector<char> Vector;
 //
