@@ -83,7 +83,7 @@ namespace t3d
 		}
 
 		template<typename... Components_T>
-		static bool __fastcall HaveComponents(const ComponentSignature_T& Left)
+		static bool __fastcall Contains(const ComponentSignature_T& Left)
 		{
 			ComponentSignature_T Signature = CreateComponentSignature<Components_T...>();
 
