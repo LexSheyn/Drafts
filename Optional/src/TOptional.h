@@ -186,7 +186,7 @@ namespace t3d
 
 		template<typename Self_T>
 		constexpr void AssignFrom(Self_T&& Right) noexcept(std::is_nothrow_constructible_v<T, decltype(*std::forward<Self_T>(Right))>
-                                                        && std::is_nothrow_assignable_v<T&, decltype(*std::forward<Self_T>(Right))>)
+		                                                && std::is_nothrow_assignable_v<T&, decltype(*std::forward<Self_T>(Right))>)
 		{
 			if (Right.b_HasValue)
 			{
@@ -261,14 +261,14 @@ namespace t3d
 	
 		template<typename Other_T>
 		struct AllowUnwrapping_T : std::bool_constant<std::disjunction_v<std::is_same<T, Other_T>
-                                                    , std::is_constructible<T, TOptional<Other_T>&>
-                                                    , std::is_constructible<T, const TOptional<Other_T>&>
-                                                    , std::is_constructible<T, const TOptional<Other_T>>
-                                                    , std::is_constructible<T, TOptional<Other_T>>
-                                                    , std::is_convertible<TOptional<Other_T>&, T>
-                                                    , std::is_convertible<const TOptional<Other_T>&, T>
-                                                    , std::is_convertible<const TOptional<Other_T>, T>
-                                                    , std::is_convertible<TOptional<Other_T>, T>> == false> {};
+		                                            , std::is_constructible<T, TOptional<Other_T>&>
+		                                            , std::is_constructible<T, const TOptional<Other_T>&>
+		                                            , std::is_constructible<T, const TOptional<Other_T>>
+		                                            , std::is_constructible<T, TOptional<Other_T>>
+		                                            , std::is_convertible<TOptional<Other_T>&, T>
+		                                            , std::is_convertible<const TOptional<Other_T>&, T>
+		                                            , std::is_convertible<const TOptional<Other_T>, T>
+		                                            , std::is_convertible<TOptional<Other_T>, T>> == false> {};
 
 		template<typename Other_T, std::enable_if_t<std::conjunction_v<AllowUnwrapping_T<Other_T>, std::is_constructible<T, const Other_T&>>, int32_t> = 0>
 		constexpr explicit(std::is_convertible_v<const Other_T&, T> == false) TOptional(const TOptional<Other_T>& Right)
