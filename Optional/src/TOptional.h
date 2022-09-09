@@ -1,9 +1,9 @@
 #pragma once
 
-#include <utility>
 #include <exception>
-#include <new>
 #include <type_traits>
+#include <utility>
+#include <new>
 #include <cassert>
 #include <cstdint>
 #include <initializer_list>
@@ -39,7 +39,7 @@ namespace t3d
 		constexpr Nontrivial_T() noexcept {}
 	};
 
-	static_assert(std::is_trivially_default_constructible_v<Nontrivial_T> == false);
+	static_assert(!std::is_trivially_default_constructible_v<Nontrivial_T>);
 
 	struct ConstructFromInvokeResultTag_T
 	{
@@ -153,7 +153,7 @@ namespace t3d
 		template<typename... Args_T>
 		constexpr T& Construct(Args_T&&... Args)
 		{
-			assert(this->b_HasValue == false);
+			assert(!this->b_HasValue);
 
 			ConstructInPlace(this->StoredValue, std::forward<Args_T>(Args)...);
 
@@ -200,28 +200,28 @@ namespace t3d
 
 		[[nodiscard]] constexpr T& operator * () & noexcept
 		{
-			assert(this->b_HasValue && "Cannot access value of empty optional!");
+			assert(this->b_HasValue && "Cannot access value of empty TOptional!");
 
 			return this->StoredValue;
 		}
 
 		[[nodiscard]] constexpr const T& operator * () const& noexcept
 		{
-			assert(this->b_HasValue && "Cannot access value of empty optional!");
+			assert(this->b_HasValue && "Cannot access value of empty TOptional!");
 
 			return this->StoredValue;
 		}
 
 		[[nodiscard]] constexpr T&& operator * () && noexcept
 		{
-			assert(this->b_HasValue && "Cannot access value of empty optional!");
+			assert(this->b_HasValue && "Cannot access value of empty TOptional!");
 
 			return std::move(this->StoredValue);
 		}
 
 		[[nodiscard]] constexpr const T&& operator * () const&& noexcept
 		{
-			assert(this->b_HasValue && "Cannot access value of empty optional!");
+			assert(this->b_HasValue && "Cannot access value of empty TOptional!");
 
 			return std::move(this->StoredValue);
 		}
@@ -239,8 +239,8 @@ namespace t3d
 		using Base_T::Reset;
 		using Base_T::operator*;
 
-		static_assert(std::_Is_any_of_v<std::remove_cv_t<T>, NullOptional_T, std::in_place_t> == false , "T in TOptional<T> must be a type other than NullOptional_T or std::in_place_t!");
-		static_assert(std::is_object_v<T> && std::is_destructible_v<T> && (std::is_array_v<T> == false), "T on TOptional<T> must meet the C++17 Destructible requirements!");
+		static_assert(!std::_Is_any_of_v<std::remove_cv_t<T>, NullOptional_T, std::in_place_t> , "T in TOptional<T> must be a type other than NullOptional_T or std::in_place_t!");
+		static_assert(!std::is_object_v<T> && std::is_destructible_v<T> && (std::is_array_v<T>), "T on TOptional<T> must meet the C++17 Destructible requirements!");
 
 		using value_type = T;
 
@@ -254,24 +254,24 @@ namespace t3d
 		constexpr explicit TOptional(std::in_place_t, std::initializer_list<Element_T> InitializerList, Args_T&&... Args) : Base_T(std::in_place, InitializerList, std::forward<Args_T>(Args)...) {}
 		
 		template<typename Other_T>
-		using AllowDirectConversion_T = std::bool_constant<std::conjunction_v<std::negation<std::is_same<std::remove_cvref_t<T>, TOptional>>, std::negation<std::is_same<std::remove_cvref_t<Other_T>, std::in_place_t>>, std::is_constructible<T, Other_T>>>;
+		using Allow_Direct_Conversion_T = std::bool_constant<std::conjunction_v<std::negation<std::is_same<std::remove_cvref_t<T>, TOptional>>, std::negation<std::is_same<std::remove_cvref_t<Other_T>, std::in_place_t>>, std::is_constructible<T, Other_T>>>;
 	
-		template<typename Other_T = T, std::enable_if_t<AllowDirectConversion_T<Other_T>::value, int32_t> = 0>
-		constexpr explicit(std::is_convertible_v<Other_T, T> == false) TOptional(Other_T&& Right) : Base_T(std::in_place, std::forward<Other_T>(Right)) {}
+		template<typename Other_T = T, std::enable_if_t<Allow_Direct_Conversion_T<Other_T>::value, int32_t> = 0>
+		constexpr explicit(!std::is_convertible_v<Other_T, T>) TOptional(Other_T&& Right) : Base_T(std::in_place, std::forward<Other_T>(Right)) {}
 	
 		template<typename Other_T>
-		struct AllowUnwrapping_T : std::bool_constant<std::disjunction_v<std::is_same<T, Other_T>
-		                                            , std::is_constructible<T, TOptional<Other_T>&>
-		                                            , std::is_constructible<T, const TOptional<Other_T>&>
-		                                            , std::is_constructible<T, const TOptional<Other_T>>
-		                                            , std::is_constructible<T, TOptional<Other_T>>
-		                                            , std::is_convertible<TOptional<Other_T>&, T>
-		                                            , std::is_convertible<const TOptional<Other_T>&, T>
-		                                            , std::is_convertible<const TOptional<Other_T>, T>
-		                                            , std::is_convertible<TOptional<Other_T>, T>> == false> {};
+		struct Allow_Unwrapping_T : std::bool_constant<!std::disjunction_v<std::is_same<T, Other_T>
+		                                              , std::is_constructible<T, TOptional<Other_T>&>
+		                                              , std::is_constructible<T, const TOptional<Other_T>&>
+		                                              , std::is_constructible<T, const TOptional<Other_T>>
+		                                              , std::is_constructible<T, TOptional<Other_T>>
+		                                              , std::is_convertible<TOptional<Other_T>&, T>
+		                                              , std::is_convertible<const TOptional<Other_T>&, T>
+		                                              , std::is_convertible<const TOptional<Other_T>, T>
+		                                              , std::is_convertible<TOptional<Other_T>, T>>> {};
 
-		template<typename Other_T, std::enable_if_t<std::conjunction_v<AllowUnwrapping_T<Other_T>, std::is_constructible<T, const Other_T&>>, int32_t> = 0>
-		constexpr explicit(std::is_convertible_v<const Other_T&, T> == false) TOptional(const TOptional<Other_T>& Right)
+		template<typename Other_T, std::enable_if_t<std::conjunction_v<Allow_Unwrapping_T<Other_T>, std::is_constructible<T, const Other_T&>>, int32_t> = 0>
+		constexpr explicit(!std::is_convertible_v<const Other_T&, T>) TOptional(const TOptional<Other_T>& Right)
 		{
 			if (Right)
 			{
@@ -279,8 +279,8 @@ namespace t3d
 			}
 		}
 
-		template<typename Other_T, std::enable_if_t<std::conjunction_v<AllowUnwrapping_T<Other_T>, std::is_constructible<T, Other_T>>, int32_t> = 0>
-		constexpr explicit(std::is_convertible_v<Other_T, T> == false) TOptional(TOptional<Other_T>&& Right)
+		template<typename Other_T, std::enable_if_t<std::conjunction_v<Allow_Unwrapping_T<Other_T>, std::is_constructible<T, Other_T>>, int32_t> = 0>
+		constexpr explicit(!std::is_convertible_v<Other_T, T>) TOptional(TOptional<Other_T>&& Right)
 		{
 			if (Right)
 			{
@@ -310,13 +310,13 @@ namespace t3d
 		}
 
 		template<typename Other_T>
-		struct AllowUnwrappingAssignment_T : std::bool_constant<std::disjunction_v<std::is_same<T, Other_T>
-		                                                                         , std::is_assignable<T&, TOptional<Other_T>&>
-		                                                                         , std::is_assignable<T&, const TOptional<Other_T>&>
-		                                                                         , std::is_assignable<T&, const TOptional<Other_T>>
-		                                                                         , std::is_assignable<T&, TOptional<Other_T>>> == false> {};
+		struct Allow_Unwrapping_Assignment_T : std::bool_constant<!std::disjunction_v<std::is_same<T, Other_T>
+		                                                         , std::is_assignable<T&, TOptional<Other_T>&>
+		                                                         , std::is_assignable<T&, const TOptional<Other_T>&>
+		                                                         , std::is_assignable<T&, const TOptional<Other_T>>
+		                                                         , std::is_assignable<T&, TOptional<Other_T>>>> {};
 
-		template<typename Other_T, std::enable_if_t<std::conjunction_v<AllowUnwrappingAssignment_T<Other_T>, std::is_constructible<T, const Other_T&>, std::is_assignable<T&, const Other_T&>>, int32_t> = 0>
+		template<typename Other_T, std::enable_if_t<std::conjunction_v<Allow_Unwrapping_Assignment_T<Other_T>, std::is_constructible<T, const Other_T&>, std::is_assignable<T&, const Other_T&>>, int32_t> = 0>
 		constexpr TOptional& operator = (const TOptional<Other_T>& Right)
 		{
 			if (Right)
@@ -331,7 +331,7 @@ namespace t3d
 			return *this;
 		}
 
-		template<typename Other_T, std::enable_if_t<std::conjunction_v<AllowUnwrappingAssignment_T<Other_T>, std::is_constructible<T, Other_T>, std::is_assignable<T&, Other_T>>, int32_t> = 0>
+		template<typename Other_T, std::enable_if_t<std::conjunction_v<Allow_Unwrapping_Assignment_T<Other_T>, std::is_constructible<T, Other_T>, std::is_assignable<T&, Other_T>>, int32_t> = 0>
 		constexpr TOptional& operator = (TOptional<Other_T>&& Right)
 		{
 			if (Right)
@@ -353,14 +353,14 @@ namespace t3d
 
 		constexpr const T* operator -> () const noexcept
 		{
-			assert(this->b_HasValue && "Cannot access value of empty optional!");
+			assert(this->b_HasValue && "Cannot access value of empty TOptional!");
 
 			return std::addressof(this->StoredValue);
 		}
 
 		constexpr T* operator -> () noexcept
 		{
-			assert(this->b_HasValue && "Cannot access value of empty optional!");
+			assert(this->b_HasValue && "Cannot access value of empty TOptional!");
 
 			return std::addressof(this->StoredValue);
 		}
@@ -383,12 +383,14 @@ namespace t3d
 
 		constexpr void Swap(TOptional& Right) noexcept(std::is_nothrow_move_constructible_v<T>&& std::is_nothrow_swappable_v<T>)
 		{
-			static_assert(std::is_move_constructible_v<T>, "Underlying std::swap requires T to be move constructible!");
-			static_assert(std::is_swappable_v<T>         , "Underlying std::swap requires T to be swappable!");
+			static_assert(std::is_move_constructible_v<T>, "T must to be move constructible!");
+			static_assert(std::is_swappable_v<T>         , "T must to be swappable!");
 
 			if constexpr (std::_Is_trivially_swappable_v<T>)
 			{
-				std::swap(static_cast<TOptionalDestruct<T>&>(*this), static_cast<TOptionalDestruct<T>&>(Right));
+				using Trivial_T = TOptionalDestruct<T>;
+
+				std::swap(static_cast<Trivial_T&>(*this), static_cast<Trivial_T&>(Right));
 			}
 			else
 			{
@@ -420,7 +422,7 @@ namespace t3d
 
 		[[nodiscard]] constexpr const T& Value() const&
 		{
-			if (this->b_HasValue == false)
+			if (!this->b_HasValue)
 			{
 				ThrowEmptyOptionalAccess();
 			}
@@ -430,7 +432,7 @@ namespace t3d
 
 		[[nodiscard]] constexpr T& Value() &
 		{
-			if (this->b_HasValue == false)
+			if (!this->b_HasValue)
 			{
 				ThrowEmptyOptionalAccess();
 			}
@@ -440,7 +442,7 @@ namespace t3d
 
 		[[nodiscard]] constexpr const T&& Value() const&&
 		{
-			if (this->b_HasValue == false)
+			if (!this->b_HasValue)
 			{
 				ThrowEmptyOptionalAccess();
 			}
@@ -450,7 +452,7 @@ namespace t3d
 
 		[[nodiscard]] constexpr T&& Value() &&
 		{
-			if (this->b_HasValue == false)
+			if (!this->b_HasValue)
 			{
 				ThrowEmptyOptionalAccess();
 			}
@@ -520,7 +522,28 @@ namespace t3d
 		return Left.HasValue() <=> false;
 	}
 
-	template<typename T1, typename T2>
+	template<typename T>
+	using Enable_If_Convertible_To_Bool_T = std::enable_if<std::is_convertible_v<T, bool>, int32_t>;
+
+	template<typename Left_T, typename Right_T>
+	using Enable_If_Comparable_With_Equal_T = Enable_If_Convertible_To_Bool_T<decltype(std::declval<const Left_T&>() == std::declval<const Right_T&>())>;
+
+	template<typename Left_T, typename Right_T>
+	using Enable_If_Comparable_With_Not_Equal_T = Enable_If_Convertible_To_Bool_T<decltype(std::declval<const Left_T&>() != std::declval<const Right_T&>())>;
+
+	template<typename Left_T, typename Right_T>
+	using Enable_If_Comparable_With_Less_T = Enable_If_Convertible_To_Bool_T<decltype(std::declval<const Left_T&>() < std::declval<const Right_T&>())>;
+
+	template<typename Left_T, typename Right_T>
+	using Enable_If_Comparable_With_Greater_T = Enable_If_Convertible_To_Bool_T<decltype(std::declval<const Left_T&>() > std::declval<const Right_T&>())>;
+
+	template<typename Left_T, typename Right_T>
+	using Enable_If_Comparable_With_Less_Equal_T = Enable_If_Convertible_To_Bool_T<decltype(std::declval<const Left_T&>() <= std::declval<const Right_T&>())>;
+
+	template<typename Left_T, typename Right_T>
+	using Enable_If_Comparable_With_Greater_Equal_T = Enable_If_Convertible_To_Bool_T<decltype(std::declval<const Left_T&>() >= std::declval<const Right_T&>())>;
+
+	template<typename T1, typename T2, Enable_If_Comparable_With_Equal_T<T1, T2> = 0>
 	constexpr bool operator == (const TOptional<T1>& Left, const T2& Right)
 	{
 		if (Left)
@@ -531,7 +554,7 @@ namespace t3d
 		return false;
 	}
 
-	template<typename T1, typename T2>
+	template<typename T1, typename T2, Enable_If_Comparable_With_Equal_T<T1, T2> = 0>
 	constexpr bool operator == (const T1& Left, const TOptional<T2>& Right)
 	{
 		if (Right)
@@ -542,19 +565,19 @@ namespace t3d
 		return false;
 	}
 
-	template<typename T1, typename T2>
+	template<typename T1, typename T2, Enable_If_Comparable_With_Not_Equal_T<T1, T2> = 0>
 	constexpr bool operator != (const TOptional<T1>& Left, const T2& Right)
 	{
 		return !(Left == Right);
 	}
 
-	template<typename T1, typename T2>
+	template<typename T1, typename T2, Enable_If_Comparable_With_Not_Equal_T<T1, T2> = 0>
 	constexpr bool operator != (const T1& Left, const TOptional<T2>& Right)
 	{
 		return !(Left == Right);
 	}
 
-	template<typename T1, typename T2>
+	template<typename T1, typename T2, Enable_If_Comparable_With_Less_T<T1, T2> = 0>
 	constexpr bool operator < (const TOptional<T1>& Left, const T2& Right)
 	{
 		if (Left)
@@ -565,7 +588,7 @@ namespace t3d
 		return false;
 	}
 
-	template<typename T1, typename T2>
+	template<typename T1, typename T2, Enable_If_Comparable_With_Less_T<T1, T2> = 0>
 	constexpr bool operator < (const T1& Left, const TOptional<T2>& Right)
 	{
 		if (Right)
@@ -576,43 +599,44 @@ namespace t3d
 		return false;
 	}
 
-	template<typename T1, typename T2>
+	template<typename T1, typename T2, Enable_If_Comparable_With_Greater_T<T1, T2> = 0>
 	constexpr bool operator > (const TOptional<T1>& Left, const T2& Right)
 	{
 		return Right < Left;
 	}
 
-	template<typename T1, typename T2>
+	template<typename T1, typename T2, Enable_If_Comparable_With_Greater_T<T1, T2> = 0>
 	constexpr bool operator > (const T1& Left, const TOptional<T2>& Right)
 	{
 		return Right < Left;
 	}
 
-	template<typename T1, typename T2>
+	template<typename T1, typename T2, Enable_If_Comparable_With_Less_Equal_T<T1, T2> = 0>
 	constexpr bool operator <= (const TOptional<T1>& Left, const T2& Right)
 	{
 		return !(Right < Left);
 	}
 
-	template<typename T1, typename T2>
+	template<typename T1, typename T2, Enable_If_Comparable_With_Less_Equal_T<T1, T2> = 0>
 	constexpr bool operator <= (const T1& Left, const TOptional<T2>& Right)
 	{
 		return !(Right < Left);
 	}
 
-	template<typename T1, typename T2>
+	template<typename T1, typename T2, Enable_If_Comparable_With_Greater_Equal_T<T1, T2> = 0>
 	constexpr bool operator >= (const TOptional<T1>& Left, const T2& Right)
 	{
 		return !(Left < Right);
 	}
 
-	template<typename T1, typename T2>
+	template<typename T1, typename T2, Enable_If_Comparable_With_Greater_Equal_T<T1, T2> = 0>
 	constexpr bool operator >= (const T1& Left, const TOptional<T2>& Right)
 	{
 		return !(Left < Right);
 	}
 
 	template<typename T1, typename T2>
+	requires (!std::_Is_specialization_v<T2, TOptional>) && std::three_way_comparable_with<T1, T2>
 	constexpr std::compare_three_way_result_t<T1, T2> operator <=> (const TOptional<T1>& Left, const T2& Right)
 	{
 		if (Left)
@@ -623,7 +647,7 @@ namespace t3d
 		return std::strong_ordering::less;
 	}
 
-	template<typename T>
+	template<typename T, std::enable_if<std::is_move_constructible_v<T> && std::is_swappable_v<T>, int32_t> = 0>
 	constexpr void Swap(TOptional<T>& Left, TOptional<T>& Right) noexcept(noexcept(Left.Swap(Right)))
 	{
 		Left.Swap(Right);
@@ -646,21 +670,31 @@ namespace t3d
 	{
 		return TOptional<T>(std::in_place, InitializerList, std::forward<Args_T>(Args)...);
 	}
+}
 
-	template<typename T>
-	struct THash;
-
-	template<typename T>
-	struct THash<TOptional<T>>
+namespace std
+{
+	// Trick injected STL specialization.
+	template<typename T, enable_if<is_move_constructible_v<T>&& is_swappable_v<T>, int32_t> = 0>
+	constexpr void swap(t3d::TOptional<T>& Left, t3d::TOptional<T>& Right) noexcept(noexcept(Left.Swap(Right)))
 	{
-		size_t operator () (const TOptional<T>& Right) noexcept(std::_Is_nothrow_hashable<std::remove_const<T>>::value)
+		Left.Swap(Right);
+	}
+
+	// Trick injected STL specialization.
+	template<typename T>
+	struct hash<t3d::TOptional<T>> : _Conditionally_enabled_hash<t3d::TOptional<T>, is_default_constructible_v<hash<remove_const_t<T>>>>
+	{
+		static size_t _Do_hash(const t3d::TOptional<T>& Optional) noexcept(_Is_nothrow_hashable<remove_const<T>>::value)
 		{
-			if (Right)
+			constexpr size_t UnspecifiedValue = 0;
+
+			if (Optional)
 			{
-				return std::hash<std::remove_const_t<T>>{}(Right.Value());
+				return hash<remove_const_t<T>>{}(Optional.Value());
 			}
 
-			return 0;
+			return UnspecifiedValue;
 		}
 	};
 }
