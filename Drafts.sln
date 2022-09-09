@@ -31,6 +31,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Building_an_ECS", "Building
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Optional", "Optional\Optional.vcxproj", "{568767C8-9138-4C5D-9350-734923C54C7D}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ConcurrentEventQueue", "ConcurrentEventQueue\ConcurrentEventQueue.vcxproj", "{6585BD4F-0788-4173-AB99-7E964DB46724}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -151,6 +153,14 @@ Global
 		{568767C8-9138-4C5D-9350-734923C54C7D}.Release|x64.Build.0 = Release|x64
 		{568767C8-9138-4C5D-9350-734923C54C7D}.Release|x86.ActiveCfg = Release|Win32
 		{568767C8-9138-4C5D-9350-734923C54C7D}.Release|x86.Build.0 = Release|Win32
+		{6585BD4F-0788-4173-AB99-7E964DB46724}.Debug|x64.ActiveCfg = Debug|x64
+		{6585BD4F-0788-4173-AB99-7E964DB46724}.Debug|x64.Build.0 = Debug|x64
+		{6585BD4F-0788-4173-AB99-7E964DB46724}.Debug|x86.ActiveCfg = Debug|Win32
+		{6585BD4F-0788-4173-AB99-7E964DB46724}.Debug|x86.Build.0 = Debug|Win32
+		{6585BD4F-0788-4173-AB99-7E964DB46724}.Release|x64.ActiveCfg = Release|x64
+		{6585BD4F-0788-4173-AB99-7E964DB46724}.Release|x64.Build.0 = Release|x64
+		{6585BD4F-0788-4173-AB99-7E964DB46724}.Release|x86.ActiveCfg = Release|Win32
+		{6585BD4F-0788-4173-AB99-7E964DB46724}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
