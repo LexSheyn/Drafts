@@ -1,12 +1,15 @@
 #include "FWorkerThread.h"
 
+#include <cassert>
+
 namespace t3d
 {
 // Constructors and Destructor:
 
 	FWorkerThread::FWorkerThread()
-		: StartSemaphore (false)
-		, b_Running      (false)
+		: LaunchSemaphore (false)
+		, StopSemaphore   (false)
+		, b_Running       (false)
 	{}
 
 	FWorkerThread::~FWorkerThread()
@@ -22,18 +25,37 @@ namespace t3d
 
 	void FWorkerThread::Launch()
 	{
+		assert(b_Running.load() == false && "Thread is already launched!");
+
 		b_Running.store(true);
 
 		ExecutionThread = std::thread(&FWorkerThread::ExecuteJobs, this);
 
-		StartSemaphore.acquire();
+		ExecutionThread.detach();
+
+		LaunchSemaphore.acquire();
 	}
 
 	void FWorkerThread::Stop()
 	{
+		assert(b_Running.load() && "Thread is not running!");
+
 		this->Schedule([this]() { b_Running.store(false); });
 
-		ExecutionThread.join();
+		StopSemaphore.acquire();
+	}
+
+
+// Accessors:
+
+	bool FWorkerThread::IsRunning() const
+	{
+		return b_Running.load();
+	}
+
+	bool FWorkerThread::IsBusy() const
+	{
+		return b_Busy.load();
 	}
 
 
@@ -41,13 +63,15 @@ namespace t3d
 
 	void FWorkerThread::ExecuteJobs()
 	{
-		StartSemaphore.release();
+		LaunchSemaphore.release();
 
 		std::vector<Job_T> ReadBuffer;
 
 		while (b_Running.load() || !this->BufferIsEmpty(WriteBuffer))
 		{
 			ExecutionLock.Acquire();
+
+			b_Busy.store(true);
 
 			{
 				std::scoped_lock<std::mutex> Lock(BufferMutex);
@@ -61,7 +85,11 @@ namespace t3d
 			}
 
 			ReadBuffer.clear();
+
+			b_Busy.store(false);
 		}
+
+		StopSemaphore.release();
 	}
 
 

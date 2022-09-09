@@ -2,13 +2,12 @@
 
 #include "TJob.h"
 
+#include <type_traits>
 #include <mutex>
 #include <thread>
 #include <semaphore>
 #include <atomic>
 #include <vector>
-#include <functional>
-#include <type_traits>
 
 namespace t3d
 {
@@ -50,6 +49,11 @@ namespace t3d
 			return Handle;
 		}
 
+	// Accessors:
+
+		bool IsRunning () const;
+		bool IsBusy    () const;
+
 	private:
 
 	// Private Functions:
@@ -66,8 +70,10 @@ namespace t3d
 		std::vector<Job_T>    WriteBuffer;
 		std::thread           ExecutionThread;
 		FAtomicLock           ExecutionLock;
-		std::binary_semaphore StartSemaphore;
+		std::binary_semaphore LaunchSemaphore;
+		std::binary_semaphore StopSemaphore;
 		std::atomic<bool>     b_Running;
+		std::atomic<bool>     b_Busy;
 	};
 
 //	constexpr size_t Size = sizeof(FWorkerThread);

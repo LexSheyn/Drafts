@@ -1,27 +1,26 @@
 #pragma once
-/*
-#include "XWorkerThread.h"
 
-#include <memory>
-#include <unordered_map>
+#include "FWorkerThread.h"
+
+#include <type_traits>
 #include <vector>
-#include <semaphore>
-#include <atomic>
+#include <memory>
 
 namespace t3d
 {
-	enum EThreadId
+	enum class EThreadId
 	{
-		  T3D_THREAD_ID_ZERO = 0
-		, T3D_THREAD_ID_ONE
-		, T3D_THREAD_ID_TWO
-		, T3D_THREAD_ID_THREE
-		, T3D_THREAD_ID_MAX_ENUM
+		  Zero = 0
+		, One
+		, Two
+		, Three
 	};
 
 	class FJobSystem
 	{
 	public:
+
+	// Constructors and Destructor:
 
 		 FJobSystem ();
 		~FJobSystem ();
@@ -29,39 +28,32 @@ namespace t3d
 		// No copy
 		// No move
 
+	// Functions:
+
 		void Startup  ();
 		void Shutdown ();
 
-		void Schedule (Job_T&& Job);               // Return JobHandle_T
-		void Schedule (EThreadId Id, Job_T&& Job); // Return JobHandle_T
+		template<typename Functor_T, typename... Args_T>
+		using Return_T = std::invoke_result_t<Functor_T, Args_T...>;
 
-		bool   IsRunning              () const;
-		bool   IsBusy                 (EThreadId Id) const;
-		size_t JobCount               () const;
-		size_t JobCount               (EThreadId Id) const;
-		size_t SequentialThreadsCount () const noexcept;
-		size_t ConcurrentThreadsCount () const noexcept;
+		template<typename Functor_T>
+		JobHandle_T<Return_T<Functor_T>> Schedule(EThreadId ThreadId, Functor_T&& Job)
+		{
+			return WorkerThreads[static_cast<size_t>(ThreadId)]->Schedule(std::move(Job));
+		}
+
+	// Accessors:
+
+		bool IsRunning () const;
+		bool IsBusy    (EThreadId ThreadId) const;
 
 	private:
 
-		void ExecuteJobs ();
+	// Variables:
 
-		enum { MaxThreads = 4 };
-
-		FJobQueue                                   JobQueue;
-		std::vector<std::unique_ptr<XWorkerThread>> SequentialThreads;
-		std::vector<std::unique_ptr<XWorkerThread>> ConcurrentThreads;
-		std::thread                                 ExecutionThread;
-		std::binary_semaphore                       ExecutionSemaphore;
-		std::atomic<bool>                           b_Started;
+		std::vector<std::unique_ptr<FWorkerThread>> WorkerThreads;
 		std::atomic<bool>                           b_Running;
-		std::atomic<bool>                           b_Busy;
 	};
 
-//	constexpr size_t Size = sizeof(std::thread);
-//	constexpr size_t Size = sizeof(std::vector<std::unique_ptr<XWorkerThread>>);
 //	constexpr size_t Size = sizeof(FJobSystem);
-//	constexpr size_t Size = sizeof(std::counting_semaphore<12>);
-//	constexpr size_t Size = sizeof(std::condition_variable);
-//	constexpr size_t Size = sizeof(std::mutex);
-}*/
+}

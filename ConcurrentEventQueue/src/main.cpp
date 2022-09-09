@@ -2,13 +2,13 @@
 #include <iostream>
 #include <chrono>
 
-#include "FWorkerThread.h"
+#include "FJobSystem.h"
 
 int32_t main(int32_t ArgC, const char* ArgV)
 {
-	t3d::FWorkerThread Thread;
+	t3d::FJobSystem JobSystem;
 
-	Thread.Launch();
+	JobSystem.Startup();
 
 	int32_t A = 0;
 	int32_t B = 0;
@@ -19,7 +19,7 @@ int32_t main(int32_t ArgC, const char* ArgV)
 
 	while (i++ < 5)
 	{
-		auto Handle = Thread.Schedule(
+		auto Handle = JobSystem.Schedule(t3d::EThreadId::Zero,
 			[&]()
 			{
 				A++;
@@ -33,10 +33,12 @@ int32_t main(int32_t ArgC, const char* ArgV)
 				return B;
 			});
 
-		Result = Handle->Await();
+	//	std::this_thread::sleep_for(std::chrono::seconds(1));
+	//
+	//	Result += Handle->Await();
 	}
 
-	Thread.Stop();
+	JobSystem.Shutdown();
 
 	std::cout << std::endl;
 	std::cout << "A:      " << A      << std::endl;

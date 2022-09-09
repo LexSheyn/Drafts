@@ -60,7 +60,7 @@ namespace t3d
 	// Variables:
 
 		FAtomicLock AwaitLock;
-		Return_T*           Result;
+		Return_T*   Result;
 	};
 
 	template<>
