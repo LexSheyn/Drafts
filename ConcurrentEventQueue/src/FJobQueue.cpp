@@ -2,7 +2,7 @@
 
 namespace t3d
 {
-	void FJobQueue::Push(JobPointer_T&& Job)
+	void FJobQueue::Submit(JobPointer_T&& Job)
 	{
 		std::scoped_lock<std::mutex> Lock(AccessMutex);
 

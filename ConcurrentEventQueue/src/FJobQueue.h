@@ -20,7 +20,7 @@ namespace t3d
 		// No copy
 		// No move
 
-		void Push          (JobPointer_T&& Job);
+		void Submit        (JobPointer_T&& Job);
 		bool TransferFront (JobPointer_T& Job);
 
 		bool   IsEmpty () const;
@@ -28,7 +28,7 @@ namespace t3d
 
 	private:
 
-		mutable std::mutex AccessMutex;
+		mutable std::mutex        AccessMutex;
 		std::deque<JobPointer_T>  Jobs;
 	};
 
