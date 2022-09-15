@@ -1,5 +1,7 @@
 #pragma once
 
+#include "TrickUtility.h"
+
 #include <memory>
 #include <type_traits>
 #include <typeinfo>
@@ -25,6 +27,7 @@ namespace t3d
 
 	typedef bool bool8;
 	typedef int  int32;
+	typedef unsigned long long Size_T;
 
 	class T3D_EXCEPTION_BAD_WEAK_POINTER : public std::exception
 	{
@@ -187,16 +190,16 @@ namespace t3d
 	};
 
 	template<typename Resource_T, typename Deleter_T, typename Allocator_T>
-	class TReferenceCounterResourceAllocated : public TReferenceCounterBase // Handle reference counting for object with deleter and allocator.
+	class TReferenceCounterResourceAllocator : public TReferenceCounterBase // Handle reference counting for object with deleter and allocator.
 	{
 	public:
 
-		TReferenceCounterResourceAllocated(Resource_T Resource, Deleter_T Deleter, const Allocator_T& Allocator)
+		TReferenceCounterResourceAllocator(Resource_T Resource, Deleter_T Deleter, const Allocator_T& Allocator)
 			: TReferenceCounterBase()
 			, DeleterResourcePair(std::_One_then_variadic_args_t{}, std::move(Deleter), std::_One_then_variadic_args_t{}, Allocator, Deleter)
 		{}
 
-		~TReferenceCounterResourceAllocated() noexcept override {}
+		~TReferenceCounterResourceAllocator() noexcept override {}
 
 		void* GetDeleter(const std::type_info& TypeId) const noexcept override
 		{
@@ -210,7 +213,7 @@ namespace t3d
 
 	private:
 
-		using ReboundAllocator_T = std::_Rebind_alloc_t<Allocator_T, TReferenceCounterResourceAllocated>;
+		using ReboundAllocator_T = std::_Rebind_alloc_t<Allocator_T, TReferenceCounterResourceAllocator>;
 
 		void Destroy() noexcept override
 		{
@@ -230,9 +233,9 @@ namespace t3d
 	};
 
 	template<typename T>
-	struct FDefaultDeleter;
+	struct TDefaultDeleter;
 
-	template<typename T, typename Deleter_T = FDefaultDeleter<T>>
+	template<typename T, typename Deleter_T = TDefaultDeleter<T>>
 	class TUniquePointer;
 
 	template<typename T>
@@ -462,7 +465,157 @@ namespace t3d
 		friend Deleter_T* GetDeleter(const TSharedPointer<Other_T>& SharedPointer) noexcept;
 	};
 
-	// <memory> Line: 1420
+	template<typename T, typename = void>
+	struct Can_Scalar_Delete_T : std::false_type {};
+	template<typename T>
+	struct Can_Scalar_Delete_T<T, std::void_t<decltype(delete std::declval<T*>())>> : std::true_type {};
+
+	template<typename T, typename = void>
+	struct Can_Array_Delete_T : std::false_type {};
+	template<typename T>
+	struct Can_Array_Delete_T<T, std::void_t<decltype(delete[] std::declval<T*>())>> : std::true_type {};
+
+	template<typename Function_T, typename Arg_T, typename = void>
+	struct Can_Call_Function_Object_T : std::false_type {};
+	template<typename Function_T, typename Arg_T>
+	struct Can_Call_Function_Object_T<Function_T, Arg_T, std::void_t<decltype(std::declval<Function_T>()(std::declval<Arg_T>()))>> : std::true_type {};
+
+	template<typename T, typename Other_T>
+	struct SP_Convertible_T : std::is_convertible<T*, Other_T*>::type {};
+	template<typename T, typename Other_T>
+	struct SP_Convertible_T<T, Other_T[]> : std::is_convertible<T(*)[], Other_T(*)[]>::type {};
+	template<typename T, typename Other_T, Size_T Size>
+	struct SP_Convertible_T<T, Other_T[Size]> : std::is_convertible<T(*)[Size], Other_T(*)[Size]>::type {};
+
+	template<typename T, typename Other_T>
+	struct SP_Pointer_Compatible_T : std::is_convertible<T*, Other_T*>::type {};
+
+	template<typename T, Size_T Size>
+	struct SP_Pointer_Compatible_T<T[Size], T[]> : std::true_type {};
+	template<typename T, Size_T Size>
+	struct SP_Pointer_Compatible_T<T[Size], const T[]> : std::true_type {};
+	template<typename T, Size_T Size>
+	struct SP_Pointer_Compatible_T<T[Size], volatile T[]> : std::true_type {};
+	template<typename T, Size_T Size>
+	struct SP_Pointer_Compatible_T<T[Size], const volatile T[]> : std::true_type {};
+
+	template<typename T>
+	struct TemporaryOwner_T
+	{
+		explicit TemporaryOwner_T(T* const Pointer) noexcept
+			: Pointer (Pointer)
+		{}
+
+		~TemporaryOwner_T()
+		{
+			delete Pointer;
+		}
+
+		TemporaryOwner_T(const TemporaryOwner_T&) = delete;
+
+		TemporaryOwner_T& operator = (const TemporaryOwner_T&) = delete;
+
+		T* Pointer;
+	};
+
+	template<typename Pointer_T, typename Deleter_T>
+	struct TemporaryOwnerWithDeleter_T
+	{
+		explicit TemporaryOwnerWithDeleter_T(const Pointer_T Pointer, Deleter_T& Deleter) noexcept
+			: Pointer (Pointer)
+			, Deleter (Deleter)
+		{}
+
+		~TemporaryOwnerWithDeleter_T()
+		{
+			if (b_CallDeleter)
+			{
+				Deleter(Pointer);
+			}
+		}
+
+		TemporaryOwnerWithDeleter_T(const TemporaryOwnerWithDeleter_T&) = delete;
+
+		TemporaryOwnerWithDeleter_T& operator = (const TemporaryOwnerWithDeleter_T&) = delete;
+
+		Pointer_T  Pointer;
+		Deleter_T& Deleter;
+		bool8      b_CallDeleter = true;
+	};
+
+	template<typename T>
+	class TSharedPointer : public TPointerBase<T>
+	{
+	private:
+
+		using Base_T = TPointerBase<T>;
+
+	public:
+
+		using typename Base_T::element_type;
+
+		using weak_type = TWeakPointer<T>;
+
+		constexpr TSharedPointer () noexcept = default;
+
+		constexpr TSharedPointer (std::nullptr_t) noexcept {} // Construct empty TSharedPointer.
+
+		template<typename Other_T, std::enable_if_t<std::conjunction_v<std::conditional_t<std::is_array_v<T>, Can_Array_Delete_T<Other_T>, Can_Scalar_Delete_T<Other_T>>, SP_Convertible_T<Other_T, T>>, int32> = 0>
+		explicit TSharedPointer(Other_T* Pointer)
+		{
+			if constexpr (std::is_array_v<T>)
+			{
+				this->Set_Pointer_Deleter(Pointer, TDefaultDeleter<Other_T[]>{});
+			}
+			else
+			{
+				TemporaryOwner_T<Other_T> Owner(Pointer);
+
+				this->Set_Pointer_Reference_Counter_And_Enable_Shared(Owner.Pointer, new TReferenceCounter<Other_T>(Owner.Pointer));
+
+				Owner.Pointer = nullptr;
+			}
+		}
+
+		template<typename Other_T, typename Deleter_T, std::enable_if_t<std::conjunction_v<std::is_move_constructible<Deleter_T>, Can_Call_Function_Object_T<Deleter_T&, Other_T*&>, SP_Convertible<Other_T, T>>, int32> = 0>
+		TSharedPointer(Other_T* Pointer, Deleter_T Deleter)
+		{
+			this->Set_Pointer_Deleter(Pointer, std::move(Deleter));
+		}
+
+		// <memory> 1530
+
+	private:
+
+		template<typename Pointer_T, typename Deleter_T>
+		void Set_Pointer_Deleter(const Pointer_T Pointer, Deleter_T Deleter)
+		{
+			TemporaryOwnerWithDeleter_T<Pointer_T, Deleter_T> Owner(Pointer, Deleter);
+
+			this->Set_Pointer_Reference_Counter_And_Enable_Shared(Owner.Pointer, new TReferenceCounterResource<Pointer_T, Deleter_T>(Owner.Pointer, std::move(Deleter)));
+
+			Owner.b_CallDeleter = false;
+		}
+
+		template<typename Pointer_T, typename Deleter_T, typename Allocator_T>
+		void Set_Pointer_Deleter_Allocator(const Pointer_T Pointer, Deleter_T Deleter, Allocator_T Allocator)
+		{
+			using AllocatorReference_T = std::_Rebind_alloc_t<Allocator_T, TReferenceCounterResourceAllocator<Pointer_T, Deleter_T, Allocator_T>>;
+
+			TemporaryOwnerWithDeleter_T<Pointer_T, Deleter_T> Owner(Pointer, Deleter);
+
+			AllocatorReference_T AllocatorReference(Allocator);
+
+			std::_Alloc_construct_ptr<AllocatorReference_T> Constructor(AllocatorReference);
+
+			Constructor._Allocate();
+
+		//	std::_Construct_in_place(*Constructor._Ptr, Owner.Pointer, std::move(Deleter), Allocator);
+			Construct_In_Place(*Constructor._Ptr, Owner.Pointer, std::move(Deleter), Allocator);
+
+			// <memory> 1726
+		}
+	};
 
 
 
