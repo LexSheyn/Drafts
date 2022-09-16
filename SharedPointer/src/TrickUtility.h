@@ -3,17 +3,60 @@
 #include <type_traits>
 #include <utility>
 #include <memory>
+#include <cstdint>
 
 namespace t3d
 {
-	typedef int int32;
+#if defined _WIN64 && _MSC_VER
+#define T3D_NO_VTABLE __declspec(novtable)
+#else
+#define T3D_NO_VTABLE
+#endif
+
+#define T3D_NO_DISCARD [[nodiscard]]
+#define T3D_NO_RETURN  [[noreturn]]
+#define T3D_INLINE inline
+#define T3D_ASSERT(Expression, Message) assert(Expression)
+#define T3D_ASSERT(Expression) assert(Expression)
+
+	typedef bool bool8;
+	typedef int  int32;
+	typedef unsigned long long Size_T;
+
+	
 
 	// False value attached to a dependent name (for static_assert).
 	template<typename>	
-	inline constexpr bool Always_False_V = false;
+	T3D_INLINE constexpr bool8 Always_False_V = false;
 
 	template<typename T>
-	[[nodiscard]] constexpr T* AddressOf(T& Value) noexcept
+	T3D_NO_DISCARD constexpr T&& Forward(std::remove_reference_t<T>& Argument) noexcept
+	{
+		return static_cast<T&&>(Argument);
+	}
+
+	template<typename T>
+	T3D_NO_DISCARD constexpr T&& Forward(std::remove_reference_t<T>&& Argument) noexcept
+	{
+		static_assert(!std::is_rvalue_reference_v<T>, "Argument must not be lvalue reference!");
+
+		return static_cast<T&&>(Argument);
+	}
+
+	template<typename T>
+	T3D_NO_DISCARD constexpr std::remove_reference_t<T>&& Move(T&& Argument) noexcept
+	{
+		return static_cast<std::remove_reference_t<T>&&>(Argument);
+	}
+
+	template<typename T>
+	T3D_NO_DISCARD constexpr std::conditional_t<!std::is_nothrow_move_constructible_v<T>&& std::is_copy_constructible_v<T>, const T&, T&&> Move_If_Noexcept() noexcept
+	{
+		return Move(Argument);
+	}
+
+	template<typename T>
+	T3D_NO_DISCARD constexpr T* AddressOf(T& Value) noexcept
 	{
 		return __builtin_addressof(Value);
 	}
@@ -23,14 +66,14 @@ namespace t3d
 
 	// MSVC _Unfancy. Extract plain pointer from smart pointer.
 	template<typename Pointer_T>
-	[[nodiscard]] constexpr auto Unwrap_Pointer(Pointer_T Pointer) noexcept
+	T3D_NO_DISCARD constexpr auto Unwrap_Pointer(Pointer_T Pointer) noexcept
 	{
 		return AddressOf(*Pointer);
 	}
 
 	// MSVC _Unfancy. Does nothing for plain pointers.
 	template<typename T>
-	[[nodiscard]] constexpr T* Unwrap_Pointer(T* Pointer) noexcept
+	T3D_NO_DISCARD constexpr T* Unwrap_Pointer(T* Pointer) noexcept
 	{
 		return Pointer;
 	}
@@ -50,7 +93,7 @@ namespace t3d
 	}
 
 	template<typename Iterator_T>
-	[[nodiscard]] constexpr void* Voidify_Iterator(Iterator_T Iterator) noexcept
+	T3D_NO_DISCARD constexpr void* Voidify_Iterator(Iterator_T Iterator) noexcept
 	{
 		if constexpr (std::is_pointer_v<Iterator_T>)
 		{

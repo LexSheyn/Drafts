@@ -12,23 +12,6 @@
 
 namespace t3d
 {
-
-#if defined _WIN64 && _MSC_VER
-#define T3D_NO_VTABLE __declspec(novtable)
-#else
-#define T3D_NO_VTABLE
-#endif
-
-#define T3D_NO_DISCARD [[nodiscard]]
-#define T3D_NO_RETURN  [[noreturn]]
-#define T3D_INLINE inline
-#define T3D_ASSERT(Expression, Message) assert(Expression)
-#define T3D_ASSERT(Expression) assert(Expression)
-
-	typedef bool bool8;
-	typedef int  int32;
-	typedef unsigned long long Size_T;
-
 	class T3D_EXCEPTION_BAD_WEAK_POINTER : public std::exception
 	{
 	public:
@@ -270,8 +253,8 @@ namespace t3d
 			return 0;
 		}
 
-		template<typename Other_T>
-		T3D_NO_DISCARD bool8 OwnerBefore(const TPointerBase<Other_T>& Right) const noexcept // Compare addresses of managed objects.
+		template<typename X>
+		T3D_NO_DISCARD bool8 OwnerBefore(const TPointerBase<X>& Right) const noexcept // Compare addresses of managed objects.
 		{
 			return ReferenceCounter < Right.ReferenceCounter;
 		}
@@ -290,8 +273,8 @@ namespace t3d
 		constexpr TPointerBase () noexcept = default;
 		         ~TPointerBase ()          = default;
 
-		template<typename Other_T>
-		void Move_Construct_From(TPointerBase<Other_T>&& Right) noexcept
+		template<typename X>
+		void Move_Construct_From(TPointerBase<X>&& Right) noexcept
 		{
 			Pointer          = Right.Pointer;
 			ReferenceCounter = Right.ReferenceCounter;
@@ -300,8 +283,8 @@ namespace t3d
 			Right.ReferenceCounter = nullptr;
 		}
 
-		template<typename Other_T>
-		void Copy_Construct_From(const TSharedPointer<Other_T>& Right) noexcept
+		template<typename X>
+		void Copy_Construct_From(const TSharedPointer<X>& Right) noexcept
 		{
 			Right.Increment_Reference_Count();
 
@@ -309,8 +292,8 @@ namespace t3d
 			ReferenceCounter = Right.ReferenceCounter;
 		}
 
-		template<typename Other_T>
-		void Alias_Construct_From(const TSharedPointer<Other_T>& Right, element_type* Pointer) noexcept
+		template<typename X>
+		void Alias_Construct_From(const TSharedPointer<X>& Right, element_type* Pointer) noexcept
 		{
 			Right.Increment_Reference_Count();
 
@@ -318,8 +301,8 @@ namespace t3d
 			ReferenceCounter = Right.ReferenceCounter;
 		}
 
-		template<typename Other_T>
-		void Alias_Move_Construct_From(TSharedPointer<Other_T>&& Right, element_type* Pointer) noexcept
+		template<typename X>
+		void Alias_Move_Construct_From(TSharedPointer<X>&& Right, element_type* Pointer) noexcept
 		{
 			this->Pointer    = Pointer;
 			ReferenceCounter = Right.ReferenceCounter;
@@ -328,11 +311,11 @@ namespace t3d
 			Right.ReferenceCounter = nullptr
 		}
 
-		template<typename Other_T>
+		template<typename X>
 		friend class TWeakPointer; // Specifically TWeakPointer::Lock().
 
-		template<typename Other_T>
-		bool8 Construct_From_Weak(const TWeakPointer<Other_T>& Right) noexcept
+		template<typename X>
+		bool8 Construct_From_Weak(const TWeakPointer<X>& Right) noexcept
 		{
 			if (Right.ReferenceCounter && Right.ReferenceCounter->Increment_Reference_Count_If_Not_Zero())
 			{
@@ -367,8 +350,8 @@ namespace t3d
 			std::swap(ReferenceCounter, Right.ReferenceCounter);
 		}
 
-		template<typename Other_T>
-		void Weakly_Construct_From(const TPointerBase<Other_T>& Right) noexcept
+		template<typename X>
+		void Weakly_Construct_From(const TPointerBase<X>& Right) noexcept
 		{
 			if (Right.ReferenceCounter)
 			{
@@ -383,8 +366,8 @@ namespace t3d
 			}
 		}
 
-		template<typename Other_T>
-		void Weakly_Convert_lvalue_Avoiding_Expired_Conversions(const TPointerBase<Other_T>& Right) noexcept
+		template<typename X>
+		void Weakly_Convert_lvalue_Avoiding_Expired_Conversions(const TPointerBase<X>& Right) noexcept
 		{
 			if (Right.ReferenceCounter)
 			{
@@ -409,8 +392,8 @@ namespace t3d
 			}
 		}
 
-		template<typename Other_T>
-		void Wearly_Convert_rvalue_Avoiding_Expired_Conversions(TPointerBase<Other_T>&& Right) noexcept
+		template<typename X>
+		void Wearly_Convert_rvalue_Avoiding_Expired_Conversions(TPointerBase<X>&& Right) noexcept
 		{
 			ReferenceCounter = Right.ReferenceCounter;
 
@@ -451,18 +434,18 @@ namespace t3d
 		element_type*          Pointer          { nullptr };
 		TReferenceCounterBase* ReferenceCounter { nullptr };
 
-		template<typename Other_T>
+		template<typename X>
 		friend class TPointerBase;
 
 		friend TSharedPointer<T>;
 
-		template<typename Other_T>
+		template<typename X>
 		friend struct std::atomic;
 
 		friend T3D_EXCEPTION_POINTER_ACCESS;
 
-		template<typename Deleter_T, typename Other_T>
-		friend Deleter_T* GetDeleter(const TSharedPointer<Other_T>& SharedPointer) noexcept;
+		template<typename Deleter_T, typename X>
+		friend Deleter_T* GetDeleter(const TSharedPointer<X>& SharedPointer) noexcept;
 	};
 
 	template<typename T, typename = void>
@@ -480,15 +463,15 @@ namespace t3d
 	template<typename Function_T, typename Arg_T>
 	struct Can_Call_Function_Object_T<Function_T, Arg_T, std::void_t<decltype(std::declval<Function_T>()(std::declval<Arg_T>()))>> : std::true_type {};
 
-	template<typename T, typename Other_T>
-	struct SP_Convertible_T : std::is_convertible<T*, Other_T*>::type {};
-	template<typename T, typename Other_T>
-	struct SP_Convertible_T<T, Other_T[]> : std::is_convertible<T(*)[], Other_T(*)[]>::type {};
-	template<typename T, typename Other_T, Size_T Size>
-	struct SP_Convertible_T<T, Other_T[Size]> : std::is_convertible<T(*)[Size], Other_T(*)[Size]>::type {};
+	template<typename T, typename X>
+	struct SP_Convertible_T : std::is_convertible<T*, X*>::type {};
+	template<typename T, typename X>
+	struct SP_Convertible_T<T, X[]> : std::is_convertible<T(*)[], X(*)[]>::type {};
+	template<typename T, typename X, Size_T Size>
+	struct SP_Convertible_T<T, X[Size]> : std::is_convertible<T(*)[Size], X(*)[Size]>::type {};
 
-	template<typename T, typename Other_T>
-	struct SP_Pointer_Compatible_T : std::is_convertible<T*, Other_T*>::type {};
+	template<typename T, typename X>
+	struct SP_Pointer_Compatible_T : std::is_convertible<T*, X*>::type {};
 
 	template<typename T, Size_T Size>
 	struct SP_Pointer_Compatible_T<T[Size], T[]> : std::true_type {};
@@ -560,30 +543,65 @@ namespace t3d
 
 		constexpr TSharedPointer (std::nullptr_t) noexcept {} // Construct empty TSharedPointer.
 
-		template<typename Other_T, std::enable_if_t<std::conjunction_v<std::conditional_t<std::is_array_v<T>, Can_Array_Delete_T<Other_T>, Can_Scalar_Delete_T<Other_T>>, SP_Convertible_T<Other_T, T>>, int32> = 0>
-		explicit TSharedPointer(Other_T* Pointer)
+		template<typename X, std::enable_if_t<std::conjunction_v<std::conditional_t<std::is_array_v<T>, Can_Array_Delete_T<X>, Can_Scalar_Delete_T<X>>, SP_Convertible_T<X, T>>, int32> = 0>
+		explicit TSharedPointer(X* Pointer)
 		{
 			if constexpr (std::is_array_v<T>)
 			{
-				this->Set_Pointer_Deleter(Pointer, TDefaultDeleter<Other_T[]>{});
+				this->Set_Pointer_Deleter(Pointer, TDefaultDeleter<X[]>{});
 			}
 			else
 			{
-				TemporaryOwner_T<Other_T> Owner(Pointer);
+				TemporaryOwner_T<X> Owner(Pointer);
 
-				this->Set_Pointer_Reference_Counter_And_Enable_Shared(Owner.Pointer, new TReferenceCounter<Other_T>(Owner.Pointer));
+				this->Set_Pointer_Reference_Counter_And_Enable_Shared(Owner.Pointer, new TReferenceCounter<X>(Owner.Pointer));
 
 				Owner.Pointer = nullptr;
 			}
 		}
 
-		template<typename Other_T, typename Deleter_T, std::enable_if_t<std::conjunction_v<std::is_move_constructible<Deleter_T>, Can_Call_Function_Object_T<Deleter_T&, Other_T*&>, SP_Convertible<Other_T, T>>, int32> = 0>
-		TSharedPointer(Other_T* Pointer, Deleter_T Deleter)
+		template<typename X, typename Deleter_T, std::enable_if_t<std::conjunction_v<std::is_move_constructible<Deleter_T>, Can_Call_Function_Object_T<Deleter_T&, X*&>, SP_Convertible<X, T>>, int32> = 0>
+		TSharedPointer(X* Pointer, Deleter_T Deleter)
 		{
 			this->Set_Pointer_Deleter(Pointer, std::move(Deleter));
 		}
 
-		// <memory> 1530
+		template<typename X, typename Deleter_T, typename Allocator_T, std::enable_if_t<std::conjunction_v<std::is_move_constructible<Deleter_T>, Cal_Call_Function_Object_T<Deleter_T&, X*&>, SP_Convertible_T<X, T>>, int32> = 0>
+		TSharedPointer(X* Pointer, Deleter_T Deleter, Allocator_T Allocator)
+		{
+			this->Set_Pointer_Deleter_Allocator(Pointer, std::move(Deleter), Allocator);
+		}
+
+		template<typename Deleter_T, std::enable_if_t<std::conjunction_v<std::is_move_constructible<Deleter_T>, Can_Call_Function_Object_T<Deleter_T&, std::nullptr_t&>>, int32> = 0>
+		TSharedPointer(std::nullptr_t, Deleter_T Deleter)
+		{
+			this->Set_Pointer_Deleter(nullptr, std::move(Deleter));
+		}
+
+		template<typename Deleter_T, typename Allocator_T, std::enable_if_t<std::conjunction_v<std::is_move_constructible<Deleter_T>, Can_Call_Function_Object_T<Deleter_T&, std::nullptr_t&>>, int32> = 0>
+		TSharedPointer(std::nullptr_t, Deleter_T Deleter, Allocator_T Allocator)
+		{
+			this->Set_Pointer_Deleter_Allocator(nullptr, std::move(Deleter), Allocator);
+		}
+
+		template<typename X>
+		TSharedPointer(const TSharedPointer<X>& Right, element_type* Pointer) noexcept
+		{
+			this->Alias_Construct_From(Right, Pointer);
+		}
+
+		template<typename X>
+		TSharedPointer(TSharedPointer<X>&& Right, element_type* Pointer) noexcept
+		{
+			this->Alias_Move_Construct_From(std::move(Right), Pointer);
+		}
+
+		TSharedPointer(const TSharedPointer& Right) noexcept
+		{
+			this->Copy_Construct_From(Right);
+		}
+
+		// <memory> 1566
 
 	private:
 
@@ -610,10 +628,64 @@ namespace t3d
 
 			Constructor._Allocate();
 
-		//	std::_Construct_in_place(*Constructor._Ptr, Owner.Pointer, std::move(Deleter), Allocator);
 			Construct_In_Place(*Constructor._Ptr, Owner.Pointer, std::move(Deleter), Allocator);
 
-			// <memory> 1726
+			this->Set_Pointer_Reference_Counter_And_Enable_Shared(Owner.Pointer, Unwrap_Pointer(Constructor._Ptr));
+
+			Constructor._Ptr = nullptr;
+
+			Owner.b_CallDeleter = false;
+		}
+
+		template<typename X, typename... Args_T>
+		friend std::enable_if_t<!std::is_array_v<X>, TSharedPointer<X>> MakeShared(Args_T&&... Args);
+
+		template<typename X, typename Allocator_T, typename... Args_T>
+		friend std::enable_if_t<!std::is_array_v<X>, TSharedPointer<X>> AllocateShared(const Allocator_T& Allocator, Args_T&&... Args);
+
+		template<typename X>
+		friend std::enable_if_t<std::is_bounded_array_v<X>, TSharedPointer<X>> MakeShared();
+
+		template<typename X, typename Allocator_T>
+		friend std::enable_if_t<std::is_bounded_array_v<X>, TSharedPointer<X>> AllocateShared(const Allocator_T& Allocator);
+
+		template<typename X>
+		friend std::enable_if_t<std::is_bounded_array_v<X>, TSharedPointer<X>> MakeShared(const std::remove_extent_t<X>& Value);
+
+		template<typename X, typename Allocator_T>
+		friend std::enable_if_t<std::is_bounded_array_v<X>, TSharedPointer<X>> AllocateShared(const Allocator_T& Allocator, const std::remove_extent_t<X>& Value);
+
+		template<typename X>
+		friend std::enable_if_t<!std::is_unbounded_array_v<X>, TSharedPointer<X>> MakeSharedForOverwrite();
+
+		template<typename X, typename Allocator_T>
+		friend std::enable_if_t<!std::is_unbounded_array_v<X>, TSharedPointer<X>> AllocateSharedForOverwrite(const Allocator_T& Allocator);
+
+		template<typename X, typename... Args_T>
+		friend TSharedPointer<X> Make_Shared_Unbounded_Array(Size_T Count, const Args_T&... Args);
+
+		template<typename X, typename Allocator_T, typename... Args_T>
+		friend TSharedPointer<X> Allocate_Shared_Unbounded_Array(const Allocator_T& Allocator, Size_T Count, const Args_T&... Args);
+
+		template<typename X>
+		void Set_Pointer_Reference_Counter_And_Enable_Shared(X* const Pointer, TReferenceCounterBase* const ReferenceCounter) noexcept
+		{
+			this->Pointer          = Pointer;
+			this->ReferenceCounter = ReferenceCounter;
+
+			if constexpr (std::conjunction_v<std::negation<std::is_array<T>>, std::negation<std::is_volatile<X>>, Can_Enable_Shared_T<X>>)
+			{
+				if (Pointer && Pointer->WeakPointer.Expired())
+				{
+					Pointer->WeakPointer = TSharedPointer<std::remove_cv_t<X>>(*this, const_cast<std::remove_cv_t<X>*>(Pointer));
+				}
+			}
+		}
+
+		void Set_Pointer_Reference_Counter_And_Enable_Shared(std::nullptr_t, TReferenceCounterBase* const ReferenceCounter) noexcept
+		{
+			this->Pointer          = nullptr;
+			this->ReferenceCounter = ReferenceCounter;
 		}
 	};
 
