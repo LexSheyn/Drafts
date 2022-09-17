@@ -132,6 +132,7 @@
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\TReferenceWrapper.h" />
     <ClInclude Include="src\TrickUtility.h" />
     <ClInclude Include="src\TSharedPointer.h" />
   </ItemGroup>

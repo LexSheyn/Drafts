@@ -1,6 +1,7 @@
 #pragma once
 
 #include "TrickUtility.h"
+#include "TReferenceWrapper.h"
 
 #include <memory>
 #include <type_traits>
@@ -12,6 +13,11 @@
 
 namespace t3d
 {
+	// unsigned long.
+	// Remember: "long" and "int" are NOT the same type!
+	// "long" is required for external atomic functions in 2022 MSVC.
+	using AtomicCounter_T = std::_Atomic_counter_t;
+
 	class T3D_EXCEPTION_BAD_WEAK_POINTER : public std::exception
 	{
 	public:
@@ -33,11 +39,17 @@ namespace t3d
 	{
 	private:
 
-		virtual void Destroy    () noexcept = 0; // Destroy managed resource.
-		virtual void Delete_This () noexcept = 0; // Destroy self.
+	// Private Functions:
 
-		std::_Atomic_counter_t Uses  = 1;
-		std::_Atomic_counter_t Weaks = 1;
+		// Destroy managed resource.
+		virtual void Destroy     () noexcept = 0;
+		// Destroy self.
+		virtual void Delete_This () noexcept = 0;
+
+	// Variables:
+
+		AtomicCounter_T Uses  = 1;
+		AtomicCounter_T Weaks = 1;
 
 	protected:
 
@@ -225,7 +237,7 @@ namespace t3d
 	class TSharedPointer;
 
 	template<typename T>
-	class FWeakPointer;
+	class TWeakPointer;
 
 	template<typename T, typename = void>
 	struct Can_Enable_Shared_T : std::false_type {}; // Detect unambiguous and accessible inheritance from Enable_Shared_From_This.
@@ -344,7 +356,7 @@ namespace t3d
 			}
 		}
 
-		void Swap(TPointerBase& Right) noexcept
+		void Swap_Contents(TPointerBase& Right) noexcept
 		{
 			std::swap(Pointer         , Right.Pointer);
 			std::swap(ReferenceCounter, Right.ReferenceCounter);
@@ -539,6 +551,8 @@ namespace t3d
 
 		using weak_type = TWeakPointer<T>;
 
+		using Base_T::Get;
+
 		constexpr TSharedPointer () noexcept = default;
 
 		constexpr TSharedPointer (std::nullptr_t) noexcept {} // Construct empty TSharedPointer.
@@ -601,7 +615,147 @@ namespace t3d
 			this->Copy_Construct_From(Right);
 		}
 
-		// <memory> 1566
+		template<typename X, std::enable_if_t<SP_Pointer_Compatible_T<X, T>::value, int32> = 0>
+		TSharedPointer(const TSharedPointer<X>& Right) noexcept
+		{
+			this->Copy_Construct_From(Right);
+		}
+
+		TSharedPointer(TSharedPointer&& Right) noexcept
+		{
+			this->Move_Construct_From(Move(Right));
+		}
+
+		template<typename X, std::enable_if_t<SP_Pointer_Compatible_T<X, T>::value, int32> = 0>
+		TSharedPointer(TSharedPointer<X>&& Right) noexcept
+		{
+			this->Move_Construct_From(Move(Right));
+		}
+
+		template<typename X, std::enable_if_t<SP_Pointer_Compatible_T<X, T>::value, int32> = 0>
+		explicit TSharedPointer(const TWeakPointer<X>& Right)
+		{
+			if (!this->Construct_From_Weak(Right))
+			{
+				Throw_Bad_Weak_Pointer();
+			}
+		}
+
+		template<typename X, typename Deleter_T, std::enable_if_t<std::conjunction_v<SP_Pointer_Compatible_T<typename TUniquePointer<X, Deleter_T>::pointer, element_type*>>, int32> = 0>
+		TSharedPointer(TUniquePointer<X, Deleter_T>&& Right)
+		{
+			using Smart_T          = typename TUniquePointer<X, Deleter_T>::pointer;
+			using Raw_T            = typename TUniquePointer<X, Deleter_T>::element_type*;
+		//	using EnabledDeleter_T = std::conditional_t<std::is_reference_v<Deleter_T>, decltype(std::ref(Right.GetDeleter())), Deleter_T>;
+			using EnabledDeleter_T = std::conditional_t<std::is_reference_v<Deleter_T>, decltype(Reference(Right.GetDeleter())), Deleter_T>;
+			
+			const Smart_T SmartPointer = Right.Get();
+
+			if (SmartPointer)
+			{
+				const Raw_T RawPointer = SmartPointer;
+
+				const auto ReferenceCounter = new TReferenceCounterResource<Smart_T, Deleter_T>(SmartPointer, Forward<Deleter_T>(Right.GetDeleter()));
+
+				this->Set_Pointer_Reference_Counter_And_Enable_Shared(RawPointer, ReferenceCounter);
+
+				Right.Release();
+			}
+		}
+
+		~TSharedPointer() noexcept
+		{
+			this->Decrement_Reference_Count();
+		}
+
+		TSharedPointer& operator = (const TSharedPointer& Right) noexcept
+		{
+			TSharedPointer(Right).Swap(*this);
+
+			return *this;
+		}
+
+		template<typename X>
+		TSharedPointer& operator = (const TSharedPointer<X>& Right) noexcept
+		{
+			TSharedPointer(Right).Swap(*this);
+
+			return *this;
+		}
+
+		TSharedPointer& operator = (TSharedPointer&& Right) noexcept
+		{
+			TSharedPointer(Move(Right)).Swap(*this);
+
+			return *this;
+		}
+
+		template<typename X>
+		TSharedPointer& operator = (TSharedPointer<X>&& Right) noexcept
+		{
+			TSharedPointer(Move(Right)).Swap(*this);
+
+			return *this;
+		}
+
+		template<typename X, typename Deleter_T>
+		TSharedPointer& operator = (TUniquePointer<X, Deleter_T>&& Right) noexcept
+		{
+			TSharedPointer(Move(Right)).Swap(*this);
+
+			return *this;
+		}
+
+		void Swap(TSharedPointer& Right) noexcept
+		{
+			this->Swap_Contents(Right);
+		}
+
+		void Reset() noexcept
+		{
+			TSharedPointer().Swap(*this);
+		}
+
+		template<typename X>
+		void Reset(X* Pointer)
+		{
+			TSharedPointer(Pointer).Swap(*this);
+		}
+
+		template<typename X, typename Deleter_T>
+		void Reset(X* Pointer, Deleter_T Deleter)
+		{
+			TSharedPointer(Pointer, Deleter).Swap(*this);
+		}
+
+		template<typename X, typename Deleter_T, typename Allocator_T>
+		void Reset(X* Pointer, Deleter_T Deleter, Allocator_T Allocator)
+		{
+			TSharedPointer(Pointer, Deleter, Allocator).Swap(*this);
+		}
+
+		template<typename X = T, std::enable_if_t<!std::disjunction_v<std::is_array<X>, std::is_void<X>>, int32> = 0>
+		T3D_NO_DISCARD X& operator * () const noexcept
+		{
+			return *Get();
+		}
+
+		template<typename X = T, std::enable_if_t<!std::is_array_v<X>, int32> = 0>
+		T3D_NO_DISCARD X* operator -> () const noexcept
+		{
+			return Get();
+		}
+
+		template<typename X = T, typename Element_T = element_type, std::enable_if_t<std::is_array_v<X>, int32> = 0>
+		T3D_NO_DISCARD Element_T& operator [] (std::ptrdiff_t Index) const noexcept
+		{
+			return Get()[Index];
+		}
+
+		explicit operator bool () const noexcept
+		{
+			return Get() != nullptr;
+		}
 
 	private:
 
@@ -689,105 +843,65 @@ namespace t3d
 		}
 	};
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	// Base class for TSharedPointer and TWeakPointer
 	template<typename T>
-	class TPointer
+	TSharedPointer(TWeakPointer<T>) -> TSharedPointer<T>;
+
+	template<typename T, typename Deleter_T>
+	TSharedPointer(TUniquePointer<T, Deleter_T>) -> TSharedPointer<T>;
+
+// Operators:
+
+	template<typename T1, typename T2>
+	T3D_NO_DISCARD bool8 operator == (const TSharedPointer<T1>& Left, const TSharedPointer<T2>& Right) noexcept
 	{
-	public:
+		return Left.Get() == Right.Get();
+	}
 
-		using element_type = std::remove_reference_t<T>;
+	template<typename T1, typename T2>
+	T3D_NO_DISCARD std::strong_ordering operator <=> (const TSharedPointer<T1>& Left, const TSharedPointer<T2>& Right) noexcept
+	{
+		return Left.Get() <=> Right.Get();
+	}
 
-	//	[[nodiscard]]
+	template<typename T>
+	T3D_NO_DISCARD bool8 operator == (const TSharedPointer<T>& Left, std::nullptr_t) noexcept
+	{
+		return Left.Get() == nullptr;
+	}
 
-	protected:
+	template<typename T>
+	T3D_NO_DISCARD std::strong_ordering operator <=> (const TSharedPointer<T>& Left, std::nullptr_t) noexcept
+	{
+		return Left.Get() <=> static_cast<typename TSharedPointer<T>::element_type*>(nullptr);
+	}
 
-		//
+	template<typename Element_T, typename Traits_T, typename T>
+	std::basic_ostream<Element_T, Traits_T>& operator << (std::basic_ostream<Element_T, Traits_T>& OutputStream, const TSharedPointer<T>& Pointer)
+	{
+		return OutputStream << Pointer.Get();
+	}
 
-	private:
+// Swap:
 
-		element_type* Pointer { nullptr };
+	template<typename T>
+	void Swap(TSharedPointer<T>& Left, TSharedPointer<T>& Right) noexcept
+	{
+		return Left.Swap(Right);
+	}
 
-	};
-}
+// Type Casting:
+
+	// <memory> 1912
+
+} // namespace t3d
+
+namespace std
+{
+	// Trick injected specialization.
+	template<typename T>
+	void swap(t3d::TSharedPointer<T>& Left, t3d::TSharedPointer<T>& Right) noexcept
+	{
+		Left.Swap(Right);
+	}
+
+} // namespace std
