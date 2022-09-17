@@ -891,7 +891,156 @@ namespace t3d
 
 // Type Casting:
 
-	// <memory> 1912
+	template<typename T1, typename T2>
+	T3D_NO_DISCARD TSharedPointer<T1> StaticPointerCast(const TSharedPointer<T2>& Right) noexcept
+	{
+		const auto Pointer = static_cast<typename TSharedPointer<T1>::element_type*>(Right.Get());
+
+		return TSharedPointer<T1>(Right, Pointer);
+	}
+
+	template<typename T1, typename T2>
+	T3D_NO_DISCARD TSharedPointer<T1> StaticPointerCast(TSharedPointer<T2>&& Right) noexcept
+	{
+		const auto Pointer = static_cast<typename TSharedPointer<T1>::element_type*>(Right.Get());
+
+		return TSharedPointer<T1>(Move(Right), Pointer);
+	}
+
+	template<typename T1, typename T2>
+	T3D_NO_DISCARD TSharedPointer<T1> ConstPointerCast(const TSharedPointer<T2>& Right) noexcept
+	{
+		const auto Pointer = const_cast<typename TSharedPointer<T1>::element_type*>(Right.Get());
+
+		return TSharedPointer<T1>(Right, Pointer);
+	}
+
+	template<typename T1, typename T2>
+	T3D_NO_DISCARD TSharedPointer<T1> ConstPointerCast(TSharedPointer<T2>&& Right) noexcept
+	{
+		const auto Pointer = const_cast<typename TSharedPointer<T1>::element_type*>(Right.Get());
+
+		return TSharedPointer<T1>(Move(Right), Pointer);
+	}
+
+	template<typename T1, typename T2>
+	T3D_NO_DISCARD TSharedPointer<T1> ReinterpretPointerCast(const TSharedPointer<T2>& Right) noexcept
+	{
+		const auto Pointer = reinterpret_cast<typename TSharedPointer<T1>::element_type*>(Right.Get());
+
+		return TSharedPointer<T1>(Right, Pointer);
+	}
+
+	template<typename T1, typename T2>
+	T3D_NO_DISCARD TSharedPointer<T1> ReinterpretPointerCast(TSharedPointer<T2>&& Right) noexcept
+	{
+		const auto Pointer = reinterpret_cast<typename TSharedPointer<T1>::element_type*>(Right.Get());
+
+		return TSharedPointer<T1>(Move(Right), Pointer);
+	}
+
+	template<typename T1, typename T2>
+	T3D_NO_DISCARD TSharedPointer<T1> DynamicPointerCast(const TSharedPointer<T2>& Right) noexcept
+	{
+		const auto Pointer = dynamic_cast<typename TSharedPointer<T1>::element_type*>(Right.Get());
+
+		if (Pointer)
+		{
+			return TSharedPointer<T1>(Right, Pointer);
+		}
+
+		return {};
+	}
+
+	template<typename T1, typename T2>
+	T3D_NO_DISCARD TSharedPointer<T1> DynamicPointerCast(TSharedPointer<T2>&& Right) noexcept
+	{
+		const auto Pointer = dynamic_cast<typename TSharedPointer<T1>::element_type*>(Right.Get());
+
+		if (Pointer)
+		{
+			return TSharedPointer<T1>(Right, Pointer);
+		}
+
+		return {};
+	}
+
+	template<typename Deleter_T, typename T>
+	T3D_NO_DISCARD Deleter_T* GetDeleter(const TSharedPointer<T>& SharedPointer) noexcept
+	{
+		if (SharedPointer.ReferenceCounter)
+		{
+			return static_cast<Deleter_T*>(SharedPointer.ReferenceCounter->GetDeleter(typeid(Deleter_T)));
+		}
+
+		return nullptr;
+	}
+
+	struct For_Overwrite_Tag
+	{
+		explicit For_Overwrite_Tag () = default;
+	};
+
+	// <xmemory> 1923
+#pragma warning (push)
+#pragma warning (disable : 4624) // '%s': destructor was implicitly defined as deleted.
+	template<typename T>
+	struct Wrapper_T
+	{
+		T Value; // Workaround for VSO-586813 "T^ is not allowed in a union".
+	};
+#pragma warning (pop)
+
+	template<typename T>
+	class TReferenceCounterObject : public TReferenceCounterBase // Handle reference counting for object in control block, no allocator.
+	{
+	public:
+
+		template<typename... Args_T>
+		explicit TReferenceCounterObject(Args_T&&... Args) : TReferenceCounterBase()
+		{
+			if constexpr (sizeof...(Args_T) == 1 && (std::is_same_v<For_Overwrite_Tag, std::remove_cvref_t<Args_T>>&&...))
+			{
+				Default_Construct_In_Place(Storage.Value);
+
+				((void)Args, ...);
+			}
+			else
+			{
+				Construct_In_Place(Storage.Value, Forward<Args_T>(Args)...);
+			}
+		}
+
+		~TReferenceCounterObject() noexcept override
+		{
+			// MSVC: TRANSITION, should be non-virtual.
+			// Nothing to do, Storage.Value was already destroyed in Destroy().
+			
+			// MSVC: N4849 [class.dtor]/7:
+			// "A defaulted destructor for a class X is defined as deleted if:
+			// X is a union-like class that has a variant member with a non-trivial destructor".
+		}
+
+		union
+		{
+			Wrapper_T<T> Storage;
+		};
+
+	private:
+
+		void Destroy() noexcept override
+		{
+			Destroy_In_Place(Storage.Value);
+		}
+
+		void Delete_This() noexcept override
+		{
+			delete this;
+		}
+
+	};
+
+	// <memory> 2044
 
 } // namespace t3d
 
