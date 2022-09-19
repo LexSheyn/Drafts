@@ -50,7 +50,7 @@ namespace t3d
 	}
 
 	template<typename T>
-	T3D_NO_DISCARD constexpr std::conditional_t<!std::is_nothrow_move_constructible_v<T>&& std::is_copy_constructible_v<T>, const T&, T&&> Move_If_Noexcept() noexcept
+	T3D_NO_DISCARD constexpr std::conditional_t<!std::is_nothrow_move_constructible_v<T>&& std::is_copy_constructible_v<T>, const T&, T&&> Move_If_Noexcept(T& Argument) noexcept
 	{
 		return Move(Argument);
 	}
@@ -175,5 +175,72 @@ namespace t3d
 		{
 			Location->~T();
 		}
+	}
+
+	struct Identity_T
+	{
+		template<typename T>
+		T3D_NO_DISCARD constexpr T&& operator () (T&& Right) const noexcept
+		{
+			return Forward<T>(Right);
+		}
+
+		using IsTransparent_T = int32;
+	};
+
+	template<typename T>
+	struct std::pointer_traits<T*>
+	{
+		using pointer = T*;
+		using element_type = T;
+		using difference_type = std::ptrdiff_t;
+
+		template<typename X>
+		using rebind = X*;
+
+		using Reference_T = std::conditional_t<std::is_void_v<T>, char, T>&;
+
+		T3D_NO_DISCARD static constexpr pointer PointerTo(Reference_T Value) noexcept
+		{
+			return AddressOf(Value);
+		}
+	};
+
+	template<typename T>
+	T3D_NO_DISCARD constexpr T* ToAddress(T* const Value) noexcept
+	{
+		static_assert(!std::is_function_v<T>, "T must not be function type!");
+
+		return Value;
+	}
+
+	template<typename Pointer_T>
+	T3D_NO_DISCARD constexpr auto ToAddress(const Pointer_T& Pointer) noexcept
+	{
+		if constexpr (requires{ std::pointer_traits<Pointer_T>::to_address(Pointer); })
+		{
+			return std::pointer_traits<Pointer_T>::to_address(Pointer);
+		}
+		else
+		{
+			return ToAddress(Pointer.operator->()); // MSVC: Plain pointer overload must come first!
+		}
+	}
+
+	template<typename Iterator_T>
+	T3D_INLINE constexpr bool8 Iterator_Is_Contiguous_V = std::contiguous_iterator<Iterator_T>;
+
+	template<typename Iterator_T>
+	T3D_NO_DISCARD constexpr auto To_Address(const Iterator_T& Iterator) noexcept
+	{
+		static_assert(std::contiguous_iterator<Iterator_T>);
+
+		return ToAddress(Iterator);
+	}
+
+	template<typename Iterator_T>
+	T3D_NO_DISCARD constexpr auto To_Address(const std::move_iterator<Iterator_T>& Iterator) noexcept
+	{
+		return To_Address(Iterator.base());
 	}
 }

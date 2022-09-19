@@ -2,6 +2,7 @@
 
 #include "TrickUtility.h"
 #include "TReferenceWrapper.h"
+#include "TrickPointers.h"
 
 #include <memory>
 #include <type_traits>
@@ -1040,7 +1041,334 @@ namespace t3d
 
 	};
 
-	// <memory> 2044
+	template<Size_T Alignment>
+	struct Align_As_Storage_Unit_T
+	{
+		alignas(Alignment) char Space[Alignment];
+	};
+
+	enum class ECheckOverflow : bool8 { No, Yes };
+
+	template<typename ReferenceCounter_T, ECheckOverflow Check>
+	T3D_NO_DISCARD Size_T Calculate_Bytes_For_Flexible_Array(const Size_T Count) noexcept(Check == ECheckOverflow::No)
+	{
+		constexpr Size_T Alignment = alignof(ReferenceCounter_T);
+
+		Size_T Bytes = sizeof(ReferenceCounter_T); // Contains storage for one element.
+
+		if (Count > 1)
+		{
+			constexpr Size_T ElementSize = sizeof(typename ReferenceCounter_T::element_type);
+
+			Size_T ExtraBytes = 0;
+
+			if constexpr (Check == ECheckOverflow::Yes)
+			{
+				ExtraBytes = Get_Size_Of_N<ElementSize>(Count - 1); // Check multiplication overflow.
+
+				if (ExtraBytes > static_cast<Size_T>(-1) - Bytes - (Alignment - 1)) // Assume worst case adjustment.
+				{
+					Throw_Bad_Array_New_Length();
+				}
+			}
+			else
+			{
+				ExtraBytes = ElementSize * (Count - 1);
+			}
+
+			Bytes += ExtraBytes;
+
+			Bytes = (Bytes + Alignment - 1) & ~(Alignment - 1);
+
+			T3D_ASSERT(Bytes % sizeof(Align_As_Storage_Unit_T<Alignment>) == 0);
+
+			return Bytes;
+		}
+	}
+
+	template<typename ReferenceCounter_T>
+	T3D_NO_DISCARD ReferenceCounter_T* Allocate_Flexible_Array(const Size_T Count)
+	{
+		const Size_T Bytes         = Calculate_Bytes_For_Flexible_Array<ReferenceCounter_T, ECheckOverflow::Yes>(Count);
+		constexpr Size_T Alignment = alignof(ReferenceCounter_T);
+
+		if constexpr (Alignment > __STDCPP_DEFAULT_NEW_ALIGNMENT__)
+		{
+			return static_cast<ReferenceCounter_T*>(::operator new (Bytes, std::align_val_t(Alignment)));
+		}
+		else
+		{
+			return static_cast<ReferenceCounter_T*>(::operator new (Bytes));
+		}
+	}
+
+	template<typename ReferenceCounter_T>
+	void Deallocate_Flexible_Array(ReferenceCounter_T* const Pointer) noexcept
+	{
+		constexpr Size_T Alignment = alignof(ReferenceCounter_T);
+
+		if constexpr (Alignment > __STDCPP_DEFAULT_NEW_ALIGNMENT__)
+		{
+			::operator delete (static_cast<void*>(Pointer), std::align_val_t(Alignment));
+		}
+		else
+		{
+			::operator delete (static_cast<void*>(Pointer));
+		}
+	}
+
+	template<typename Iterator_T>
+	struct T3D_NO_DISCARD Uninitialized_Rev_Destroying_Backout_T
+	{
+		explicit Uninitialized_Rev_Destroying_Backout_T (Iterator_T Destination) noexcept
+			: First {Destination}
+			, Last  {Destination}
+		{}
+
+		Uninitialized_Rev_Destroying_Backout_T(const Uninitialized_Rev_Destroying_Backout_T&) = delete;
+
+		Uninitialized_Rev_Destroying_Backout_T& operator = (const Uninitialized_Rev_Destroying_Backout_T&) = delete;
+
+		~Uninitialized_Rev_Destroying_Backout_T()
+		{
+			while (Last != First)
+			{
+				--Last;
+
+				Destroy_At(AddressOf(*Last));
+			}
+		}
+
+		template<typename... Args_T>
+		void Emplace_Back(Args_T&&... Args)
+		{
+			Construct_In_Place(*Last, Forward<Args_T>(Args)...);
+
+			++Last;
+		}
+
+		void Emplace_Back_For_Overwrite()
+		{
+			Default_Construct_In_Place(*Last);
+
+			++Last;
+		}
+
+		Iterator_T Release() noexcept
+		{
+			First = Last;
+
+			return Last;
+		}
+
+		Iterator_T First;
+		Iterator_T Last;
+	};
+
+	template<typename T>
+	void Reverse_Destroy_Multidimensional_N(T* const Array, Size_T Size) noexcept
+	{
+		while (Size > 0)
+		{
+			--Size;
+
+			if constexpr (std::is_array_v<T>)
+			{
+				Reverse_Destroy_Multidimensional_N(Array[Size], std::extent_v<T>);
+			}
+			else
+			{
+				Destroy_In_Place(Array[Size]);
+			}
+		}
+	}
+
+	template<typename T>
+	struct T3D_NO_DISCARD TReverse_Destroy_Multidimensional_N_Guard
+	{
+		~TReverse_Destroy_Multidimensional_N_Guard()
+		{
+			if (Target)
+			{
+				Reverse_Destroy_Multidimensional_N(Target, Index);
+			}
+		}
+
+		T*     Target;
+		Size_T Index;
+	};
+
+	template<typename T, Size_T Size>
+	void Uninitialized_Copy_Multidimensional(const T(&In)[Size], T(&Out)[Size])
+	{
+		if constexpr (std::is_trivial_v<T>)
+		{
+			std::_Copy_memmove(In, In + Size, Out);
+		}
+		else if constexpr (std::is_array_v<T>)
+		{
+			TReverse_Destroy_Multidimensional_N_Guard<T> Guard{ Out, 0 };
+
+			for (Size_T& Index = Guard.Index; Index < Size; ++Index)
+			{
+				Uninitialized_Copy_Multidimensional(In[Index], Out[Index]);
+			}
+
+			Guard.Target = nullptr;
+		}
+		else
+		{
+			Uninitialized_Rev_Destorying_Backout_T Backout{ Out };
+
+			for (Size_T Index = 0u; Index < Size; ++Index)
+			{
+				Backout.Emplace_Back(In[Index]);
+			}
+
+			Backout.Release();
+		}
+	}
+
+	template<typename T>
+	void Uninitialized_Value_Construct_Multidimensional_N(T* const Out, const Size_T Size)
+	{
+		using Item_T = std::remove_all_extents_t<T>;
+
+		if constexpr (std::_Use_memset_value_construct_v<Item_T*>)
+		{
+			std::_Zero_range(Out, Out + Size);
+		}
+		else if constexpr (std::is_array_v<T>)
+		{
+			TReverse_Destroy_Multidimensional_N_Guard<T> Guard{ Out, 0 };
+
+			for (Size_T& Index = Guard.Index; Index < Size; ++Index)
+			{
+				Uninitialized_Value_Construct_Multidimensional_N(Out[Index], std::extent_v<T>);
+			}
+
+			Guard.Target = nullptr;
+		}
+		else
+		{
+			Uninitialized_Rev_Destroying_Backout_T Backout{ Out };
+
+			for (Size_T Index = 0u; Index < Size; ++Index)
+			{
+				Backout.Emplace_Back();
+			}
+
+			Backout.Release();
+		}
+	}
+
+	template<typename T>
+	void Uninitialized_Default_Construct_Multidimensional_N(T* const Out, const Size_T Size)
+	{
+		if constexpr (!std::is_trivially_default_constructible_v<T>)
+		{
+			if constexpr (std::is_array_v<T>)
+			{
+				TReverse_Destroy_Multidimensional_N_Guard<T> Guard{ Out, 0 };
+
+				for (Size_T& Index = Guard.Index; Index < Size; ++Index)
+				{
+					Uninitialized_Default_Construct_Multidimensional_N(Out[Index], std::extent_v<T>);
+				}
+
+				Guard.Target = nullptr;
+			}
+			else
+			{
+				Uninitialized_Rev_Destroying_Backout_T Backout{ Out };
+
+				for (Size_T Index = 0u; Index < Size; ++Index)
+				{
+					Backout.Emplace_Back_For_Overwrite();
+				}
+
+				Backout.Release();
+			}
+		}
+	}
+
+	template<typename T>
+	void Uninitialized_Fill_Multidimensional_N(T* const Out, const Size_T Size, const T& Value)
+	{
+		if constexpr (std::is_array_v<T>)
+		{
+			TReverse_Destroy_Multidimensional_N_Guard<T> Guard{ Out, 0 };
+			
+			for (Size_T& Index = Guard.Index; Index < Size; ++Index)
+			{
+				Uninitialized_Copy_Multidimensional(Value, Out[Index]);
+			}
+
+			Guard.Target = nullptr;
+		}
+		else if constexpr (std::_Fill_memset_is_safe<T*, T>)
+		{
+			std::_Fill_memset(Out, Value, Size);
+		}
+		else
+		{
+			if constexpr (std::_Fill_zero_memset_is_safe<T*, T>)
+			{
+				if (std::_Is_all_bits_zero(Value))
+				{
+					std::_Fill_zero_memset(Out, Size);
+
+					return;
+				}
+			}
+
+			Uninitialized_Rev_Destroying_Backout_T Backout{ Out };
+
+			for (Size_T Index = 0u; Index < Size; ++Index)
+			{
+				Backout.Emplace_Back(Value);
+			}
+
+			Backout.Release();
+		}
+	}
+
+	// <memory> 2255
+	// ...
+	// <memory> 2719
+
+	template<typename T, typename... Args_T>
+	T3D_NO_DISCARD std::enable_if_t<!std::is_array_v<T>, TSharedPointer<T>> MakeShared(Args_T&&... Args)
+	{
+		const auto ReferenceCounter = new TReferenceCounterObject<T>(Forward<Args_T>(Args)...);
+
+		TSharedPointer<T> SharedPointer;
+
+		SharedPointer.Set_Pointer_Reference_Counter_And_Enable_Shared(AddressOf(ReferenceCounter->Storage.Value), SharedPointer);
+
+		return SharedPointer;
+	}
+
+	template<typename ReferenceCounter_T>
+	struct T3D_NO_DISCARD TGlobal_Delete_Guard
+	{
+		~TGlobal_Delete_Guard()
+		{
+			// MSVC:
+			// While this branch is technically unnecessary because N4849 [new.delete.single]/17 requires
+			// `::operator delete(nullptr)` to be a no-op, it's here to help optimizers see that after
+			// `_Guard._Target = nullptr;`, this destructor can be eliminated.
+
+			if (Target)
+			{
+				Deallocate_Flexible_Array(Target);
+			}
+		}
+
+		ReferenceCounter_T* Target;
+	};
+
+	// <memory> 2751
 
 } // namespace t3d
 
